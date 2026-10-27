@@ -15,5 +15,6 @@ library(osdatahub)
 
 ```{r}
 list_os_opendata()
+list_os_datapackages()
 ```
 
