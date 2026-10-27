@@ -52,22 +52,16 @@ rsconnect/
 po/*~
 
 # =========================================================
-# ArcGIS Pro
-# 工程文件 .aprx 和工具箱 .atbx 可以提交；以下为缓存、锁文件和本地数据
+# QGIS
+# 工程文件 .qgs/.qgz、样式 .qml、布局 .qpt 可以提交；以下为备份和临时文件
 # =========================================================
-arcgis/**/*.gdb/
-arcgis/**/ImportLog/
-arcgis/**/Index/
-arcgis/**/.backups/
-arcgis/**/GpMessages/
+*.qgs~
+*.qgz~
+*.gpkg-wal
+*.gpkg-shm
+*.gpkg-journal
 *.lock
 !renv.lock
-*.aprx.bak
-*.atbx.bak
-*.sr.lock
-*.tpkx
-*.vtpk
-*.mpkx
 
 # =========================================================
 # 输出：图表和小表格可以提交；大文件请勿提交

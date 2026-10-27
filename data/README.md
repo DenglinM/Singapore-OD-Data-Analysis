@@ -32,4 +32,4 @@ R 中用 `Sys.getenv("LTA_ACCOUNT_KEY")` 读取。
 
 ## 大文件怎么共享
 
-原始 CSV 和 ArcGIS 地理数据库体积大，请通过小组网盘（OneDrive / Google Drive 等）共享，并把链接写在这里，不要放进 Git。
+原始 CSV 和空间数据（Shapefile、GeoPackage 等）体积大，请通过小组网盘（OneDrive / Google Drive 等）共享，并把链接写在这里，不要放进 Git。
