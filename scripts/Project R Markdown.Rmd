@@ -1,0 +1,20 @@
+---
+title: "Project"
+author: '''Aya'''
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(osdatahub)
+```
+
+```{r}
+list_os_opendata()
+list_os_datapackages()
+```
+
