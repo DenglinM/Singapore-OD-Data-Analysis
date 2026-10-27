@@ -1,85 +1,85 @@
-# 小组协作指南
+# Contributing guide
 
-本仓库的 `main` 分支受保护：**不能直接 push 到 `main`**，所有修改都要通过 Pull Request（PR）合并，并且至少需要一位组员审阅通过。
+The `main` branch of this repository is protected: **you cannot push directly to `main`**. Every change is merged through a pull request (PR) and needs approval from at least one teammate.
 
-## 一、第一次使用
+## 1. First-time setup
 
-1. 接受仓库邀请（查看 GitHub 注册邮箱，或在 <https://github.com/notifications> 里点 Accept）。
-2. 安装 Git，并设置姓名和邮箱（与 GitHub 账号一致）：
+1. Accept the repository invitation (check the email linked to your GitHub account, or click Accept at <https://github.com/notifications>).
+2. Install Git and set your name and email (matching your GitHub account):
    ```bash
-   git config --global user.name "你的名字"
-   git config --global user.email "你的GitHub邮箱"
+   git config --global user.name "Your Name"
+   git config --global user.email "your-github-email@example.com"
    ```
-3. 克隆仓库：
+3. Clone the repository:
    ```bash
    git clone https://github.com/DenglinM/Singapore-OD-Data-Analysis.git
    ```
-   也可以在 RStudio 中：File → New Project → Version Control → Git，粘贴上面的地址。
-   不熟悉命令行的同学可以用 [GitHub Desktop](https://desktop.github.com/)，下面每一步都有对应按钮。
+   Or in RStudio: File → New Project → Version Control → Git, and paste the URL above.
+   If you prefer not to use the command line, [GitHub Desktop](https://desktop.github.com/) has a button for every step below.
 
-## 二、日常工作流程
+## 2. Day-to-day workflow
 
 ```
-更新 main → 新建分支 → 修改并提交 → 推送分支 → 开 PR → 审阅 → 合并 → 删除分支
+update main → create a branch → edit and commit → push the branch → open a PR → review → merge → delete the branch
 ```
 
-### 1. 开始工作前，先同步最新的 main
+### 1. Before you start, sync the latest main
 
 ```bash
 git checkout main
 git pull
 ```
 
-### 2. 为这次任务新建分支
+### 2. Create a branch for the task
 
-一个任务一个分支，分支名用 `类型/简短描述`：
+One branch per task, named `type/short-description`:
 
-| 前缀 | 用途 | 例子 |
+| Prefix | Use | Example |
 |---|---|---|
-| `feat/` | 新的分析或功能 | `feat/od-reliability-check` |
-| `fix/` | 修复错误 | `fix/station-code-mismatch` |
-| `docs/` | 文档、报告 | `docs/meeting-2026-10-27` |
-| `data/` | 数据处理流程 | `data/clean-od-202609` |
+| `feat/` | new analysis or feature | `feat/od-reliability-check` |
+| `fix/` | bug fix | `fix/station-code-mismatch` |
+| `docs/` | documentation, report | `docs/meeting-2026-10-27` |
+| `data/` | data-processing pipeline | `data/clean-od-202609` |
 
 ```bash
 git checkout -b feat/od-reliability-check
 ```
 
-### 3. 修改并提交
+### 3. Edit and commit
 
-小步提交，每次提交做一件事：
+Commit in small steps, one change per commit:
 
 ```bash
 git add scripts/03_reliability_check.R
-git commit -m "新增 OD 数据与进出站客流的一致性检验"
+git commit -m "Add consistency check between OD data and station tap-in/out volumes"
 ```
 
-提交信息用一句话说明“做了什么”，中英文都可以。提交前用 `git status` 检查一下，**确认没有把数据文件加进去**。
+Write the commit message as one sentence describing what you did. Run `git status` before committing and **make sure no data files are included**.
 
-### 4. 推送分支并开 PR
+### 4. Push the branch and open a PR
 
 ```bash
 git push -u origin feat/od-reliability-check
 ```
 
-打开仓库网页，会出现 “Compare & pull request” 按钮，点击后：
+Open the repository page and click the "Compare & pull request" button that appears. Then:
 
-- 标题写清楚这次做了什么；
-- 按模板填写描述（改了什么、怎么验证、有没有需要注意的地方）；
-- 右侧 Reviewers 选一位组员。
+- give the PR a clear title describing what it does;
+- fill in the description template (what changed, how you checked it, anything to watch out for);
+- pick a teammate under Reviewers on the right.
 
-### 5. 审阅（Review）
+### 5. Review
 
-审阅人在 PR 的 “Files changed” 页面查看修改，可以逐行评论。看完后点 “Review changes”：
+The reviewer reads the changes on the PR's "Files changed" tab and can comment on individual lines. When done, click "Review changes" and choose:
 
-- **Approve**：没问题，可以合并；
-- **Request changes**：需要修改。作者在同一分支上继续提交并 push，PR 会自动更新。
+- **Approve**: looks good, ready to merge;
+- **Request changes**: something needs fixing. The author keeps committing and pushing to the same branch, and the PR updates automatically.
 
-审阅重点：代码能否运行、路径是否为相对路径、结果是否合理、有没有误提交大文件或密钥。
+What to look for: does the code run, are paths relative, are the results sensible, and were any large files or secrets committed by mistake.
 
-### 6. 合并并清理
+### 6. Merge and clean up
 
-审阅通过后，由 PR 作者点击 **Squash and merge**，然后点 “Delete branch”。本地：
+Once approved, the PR author clicks **Squash and merge**, then "Delete branch". Locally:
 
 ```bash
 git checkout main
@@ -87,33 +87,33 @@ git pull
 git branch -d feat/od-reliability-check
 ```
 
-## 三、遇到冲突怎么办
+## 3. Handling merge conflicts
 
-如果 PR 提示 “This branch has conflicts”，说明别人也改了同一处：
+If the PR says "This branch has conflicts", someone else changed the same lines:
 
 ```bash
 git checkout main
 git pull
-git checkout 你的分支
+git checkout your-branch
 git merge main
-# 打开冲突文件，保留正确的内容，删掉 <<<<<<< ======= >>>>>>> 标记
-git add 冲突文件
+# open the conflicted files, keep the correct content, remove the <<<<<<< ======= >>>>>>> markers
+git add conflicted-file
 git commit
 git push
 ```
 
-拿不准就在群里问，或者请改了同一处的组员一起看。
+If you're unsure, ask in the group chat or go through it together with the teammate who changed the same lines.
 
-**预防冲突**：开工前先 `git pull`；分工时尽量每人负责不同的脚本；QGIS 工程文件多人同时修改容易冲突，同一时间只让一个人改（见 `qgis/README.md`）。
+**Preventing conflicts**: `git pull` before you start; when splitting work, give each person different scripts; several people editing the same QGIS project at once easily causes conflicts, so only one person should edit it at a time (see `qgis/README.md`).
 
-## 四、规则汇总
+## 4. Rules at a glance
 
-- ✅ 所有修改走 PR，至少 1 人审阅后合并。
-- ✅ 路径用相对路径（`here::here()`），不写个人电脑上的绝对路径。
-- ✅ 新增数据集时更新 `data/README.md`。
-- ❌ 不提交原始数据、大文件（> 50 MB）、`.RData`、密钥（`.Renviron`）。
-- ❌ 不在别人的分支上强制推送（`git push --force`）。
+- ✅ Every change goes through a PR and is merged after at least one review.
+- ✅ Use relative paths (`here::here()`), never absolute paths from your own computer.
+- ✅ Update `data/README.md` when you add a dataset.
+- ❌ Do not commit raw data, large files (> 50 MB), `.RData` or secrets (`.Renviron`).
+- ❌ Do not force-push (`git push --force`) to someone else's branch.
 
-## 五、任务分工建议
+## 5. Splitting up tasks
 
-用 GitHub 的 **Issues** 记录任务：每个任务开一个 Issue 并指派负责人，PR 描述里写 `Closes #编号`，合并后 Issue 会自动关闭。也可以在 Projects 页面建一个看板（To do / In progress / Done）跟踪进度。
+Track tasks with GitHub **Issues**: open one issue per task and assign an owner. Write `Closes #<number>` in the PR description and the issue closes automatically when the PR is merged. You can also set up a board on the Projects page (To do / In progress / Done) to track progress.

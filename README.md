@@ -1,49 +1,49 @@
 # Singapore MRT OD Data Analysis
 
-基于新加坡公共交通（MRT）起讫点（Origin-Destination, OD）客流数据，结合站点、土地利用等空间数据开展分析，目标是：
+An analysis of origin-destination (OD) ridership data from Singapore's public transport system (MRT), combined with spatial data such as station locations and land use. The aims are to:
 
-1. 检验 OD 数据的可靠性；
-2. 挖掘有研究价值的主题（例如站点土地利用与客流的关系）。
+1. verify the reliability of the OD data;
+2. identify valuable research topics (e.g. the relationship between station land use and ridership).
 
-主要工具：**R / RStudio**（主要分析平台，空间数据用 `sf` 处理），制图和空间数据检查使用免费开源的 **QGIS**，保证每位组员都能使用。
+Tools: **R / RStudio** is the main analysis platform (spatial data handled with `sf`). **QGIS**, which is free and open source so every team member can use it, is used for mapping and checking spatial data.
 
-## 仓库结构
+## Repository structure
 
 ```
 .
 ├── data/
-│   ├── raw/            # 原始数据（不提交到 Git，见 data/README.md）
-│   ├── processed/      # 脚本生成的中间数据（不提交）
-│   └── README.md       # 数据来源、下载方式、文件命名约定
-├── scripts/            # 按编号顺序运行的分析脚本 01_*.R, 02_*.R ...
-├── R/                  # 可复用的 R 函数
-├── qgis/               # QGIS 工程 (.qgs)、图层样式、布局模板
+│   ├── raw/            # raw data (not committed, see data/README.md)
+│   ├── processed/      # intermediate data produced by scripts (not committed)
+│   └── README.md       # data sources, download instructions, file naming
+├── scripts/            # analysis scripts, run in order: 01_*.R, 02_*.R ...
+├── R/                  # reusable R functions
+├── qgis/               # QGIS projects (.qgs), layer styles, layout templates
 ├── outputs/
-│   ├── figures/        # 图表、地图成品
-│   └── tables/         # 结果表格（小文件）
-├── docs/               # 研究设计、会议记录、报告草稿
-├── CONTRIBUTING.md     # 小组协作流程（必读）
+│   ├── figures/        # figures and finished maps
+│   └── tables/         # result tables (small files)
+├── docs/               # research design, meeting notes, report drafts
+├── CONTRIBUTING.md     # team workflow (read this first)
 └── Singapore-OD-Data-Analysis.Rproj
 ```
 
-## 快速开始
+## Getting started
 
-1. 克隆仓库：
+1. Clone the repository:
    ```bash
    git clone https://github.com/DenglinM/Singapore-OD-Data-Analysis.git
    ```
-2. 用 RStudio 打开 `Singapore-OD-Data-Analysis.Rproj`（保证工作目录是项目根目录）。
-3. 按 [`data/README.md`](data/README.md) 下载数据，放到 `data/raw/` 对应位置。
-4. 按编号顺序运行 `scripts/` 中的脚本。
+2. Open `Singapore-OD-Data-Analysis.Rproj` in RStudio (this makes the project root your working directory).
+3. Download the data as described in [`data/README.md`](data/README.md) and place it under `data/raw/`.
+4. Run the scripts in `scripts/` in numbered order.
 
-## 关于数据文件
+## About data files
 
-**原始数据和大文件不要提交到 GitHub。** OD 数据每月数百 MB，GitHub 单文件上限 100 MB，而且仓库一旦进了大文件，就算之后删除，历史记录里仍然存在，每个人克隆都会变慢。`.gitignore` 已经忽略了 `data/raw/`、`data/processed/`、压缩包和 QGIS 备份文件；大文件请用小组网盘共享，并把链接写在 `data/README.md`。
+**Do not commit raw data or large files to GitHub.** The OD data is hundreds of MB per month, GitHub rejects files over 100 MB, and once a large file enters the repo it stays in the history even after deletion, slowing every clone. `.gitignore` already excludes `data/raw/`, `data/processed/`, archives and QGIS backup files. Share large files through the group's cloud drive and put the link in `data/README.md`.
 
-## 协作方式
+## Collaboration
 
-请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。简要来说：`main` 分支受保护，所有修改都通过 **新建分支 → 提交 → Pull Request → 组员审阅 → 合并** 完成。
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. In short, `main` is protected, and every change goes through **branch → commit → pull request → review by a teammate → merge**.
 
-## 许可
+## License
 
 [MIT](LICENSE)

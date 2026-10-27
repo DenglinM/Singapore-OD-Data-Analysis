@@ -1,3 +1,3 @@
 # R/
 
-可复用的 R 函数（例如读取 OD 数据、坐标转换、绘图主题）。每个文件放一组相关函数，在 `scripts/` 中用 `source(here::here("R", "xxx.R"))` 调用。
+Reusable R functions (e.g. reading OD data, coordinate transformation, plot themes). Keep one group of related functions per file and load them in `scripts/` with `source(here::here("R", "xxx.R"))`.

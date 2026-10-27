@@ -1,17 +1,17 @@
-## 改了什么
+## What changed
 
-<!-- 一两句话说明这个 PR 做了什么 -->
+<!-- One or two sentences on what this PR does -->
 
-## 为什么
+## Why
 
-<!-- 对应的任务或问题，例如 Closes #3 -->
+<!-- The related task or issue, e.g. Closes #3 -->
 
-## 如何验证
+## How it was checked
 
-<!-- 运行了哪些脚本、结果是否合理；有图表可以贴截图 -->
+<!-- Which scripts you ran and whether the results look right; add screenshots of figures if useful -->
 
-## 检查清单
+## Checklist
 
-- [ ] 没有提交原始数据、大文件或密钥（`.Renviron`）
-- [ ] 路径都是相对于项目根目录的
-- [ ] 新增数据集已更新 `data/README.md`
+- [ ] No raw data, large files or secrets (`.Renviron`) committed
+- [ ] All paths are relative to the project root
+- [ ] `data/README.md` updated for any new dataset

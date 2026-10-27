@@ -1,11 +1,11 @@
-# 统一换行符，避免 Windows / macOS 组员之间出现整文件 diff
+# Normalise line endings so Windows / macOS users don't produce whole-file diffs
 * text=auto
 *.R    text eol=lf
 *.Rmd  text eol=lf
 *.qmd  text eol=lf
 *.md   text eol=lf
 
-# 二进制文件不做文本合并
+# Binary files: never merge as text
 *.qgz    binary
 *.qgs    text eol=lf
 *.png    binary

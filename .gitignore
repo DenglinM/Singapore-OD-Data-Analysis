@@ -1,6 +1,6 @@
 # =========================================================
-# 数据文件：原始数据和中间数据一律不提交（体积大 / 可能有使用许可限制）
-# 数据获取方式写在 data/README.md
+# Data: never commit raw or intermediate data (large files / licence terms)
+# How to obtain the data is documented in data/README.md
 # =========================================================
 data/raw/*
 data/processed/*
@@ -8,7 +8,7 @@ data/processed/*
 !data/processed/.gitkeep
 !data/README.md
 
-# 仓库任何位置的大型数据 / 压缩包
+# Large data files and archives anywhere in the repo
 *.zip
 *.7z
 *.rar
@@ -28,7 +28,7 @@ data/processed/*
 /*.tar.gz
 /*.Rcheck/
 
-# knitr / R Markdown / Quarto 缓存与中间文件
+# knitr / R Markdown / Quarto caches and intermediate files
 *_cache/
 /cache/
 *.utf8.md
@@ -36,12 +36,12 @@ data/processed/*
 /.quarto/
 *_files/
 
-# 密钥 / 环境变量（例如 LTA DataMall 的 AccountKey）
+# Secrets / environment variables (e.g. the LTA DataMall AccountKey)
 .Renviron
 .env
 .httr-oauth
 
-# renv 本地库（renv.lock 需要提交，库本身不提交）
+# renv local library (commit renv.lock, not the library itself)
 renv/library/
 renv/local/
 renv/staging/
@@ -53,7 +53,8 @@ po/*~
 
 # =========================================================
 # QGIS
-# 工程文件 .qgs/.qgz、样式 .qml、布局 .qpt 可以提交；以下为备份和临时文件
+# Project files (.qgs/.qgz), styles (.qml) and layouts (.qpt) may be committed;
+# the patterns below are backups and temporary files
 # =========================================================
 *.qgs~
 *.qgz~
@@ -64,7 +65,7 @@ po/*~
 !renv.lock
 
 # =========================================================
-# 输出：图表和小表格可以提交；大文件请勿提交
+# Outputs: figures and small tables may be committed; large files may not
 # =========================================================
 outputs/**/*.tif
 outputs/**/*.tiff
@@ -76,7 +77,7 @@ outputs/**/*.prj
 outputs/**/*.cpg
 
 # =========================================================
-# 系统 / 编辑器
+# OS / editor files
 # =========================================================
 .DS_Store
 Thumbs.db

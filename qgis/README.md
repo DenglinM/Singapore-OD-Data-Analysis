@@ -1,22 +1,22 @@
 # qgis/
 
-QGIS 工程和样式文件。QGIS 免费开源，所有组员都能使用。
+QGIS project and style files. QGIS is free and open source, so every team member can use it.
 
-主要分析在 R / RStudio 中完成（空间数据用 `sf` 包处理），QGIS 主要用于：查看和检查空间数据、手动核对站点位置、制作报告用的地图。
+The main analysis is done in R / RStudio (spatial data handled with the `sf` package). QGIS is mainly used to view and check spatial data, verify station locations by hand, and make maps for the report.
 
-## 可以提交
+## Commit
 
-- 工程文件。**建议保存为 `.qgs`**（Project → Save As 时选择 `.qgs`）：它是纯文本 XML，Git 能看出改了什么；默认的 `.qgz` 是压缩包，Git 无法比较和合并。
-- 图层样式 `.qml`、打印布局模板 `.qpt`、处理模型 `.model3`。
+- Project files. **Save projects as `.qgs`** (choose `.qgs` in Project → Save As): it is plain-text XML, so Git can show what changed. The default `.qgz` is a zip archive that Git cannot diff or merge.
+- Layer styles `.qml`, print layout templates `.qpt`, processing models `.model3`.
 
-## 不要提交
+## Do not commit
 
-- 数据本身（Shapefile、GeoPackage、GeoJSON 等）放到 `data/raw/` 或 `data/processed/`，工程中引用它们即可。
-- 备份文件 `*.qgs~` / `*.qgz~` 和 GeoPackage 临时文件（已在 `.gitignore` 中忽略）。
+- The data itself (Shapefile, GeoPackage, GeoJSON, etc.). Put it in `data/raw/` or `data/processed/` and reference it from the project.
+- Backup files `*.qgs~` / `*.qgz~` and GeoPackage temporary files (already ignored in `.gitignore`).
 
-## 注意
+## Notes
 
-- 路径使用相对路径：Project → Properties → General → Save paths 选 **Relative**（QGIS 默认就是相对路径）。这样别人克隆后打开工程，图层不会丢失。
-- 坐标系统一使用 **SVY21 / Singapore TM（EPSG:3414）**。
-- 即使是 `.qgs`，多人同时改同一个工程也容易冲突。修改前在群里说一声，或者每人用自己的工程文件（例如 `od_map_姓名.qgs`）。
-- 导出的地图成品放到 `outputs/figures/`。
+- Use relative paths: Project → Properties → General → Save paths → **Relative** (the QGIS default). This way layers still load when someone else clones the repo and opens the project.
+- Use **SVY21 / Singapore TM (EPSG:3414)** as the CRS throughout.
+- Even with `.qgs`, several people editing the same project at once causes conflicts. Tell the group before editing, or give each person their own project file (e.g. `od_map_<name>.qgs`).
+- Put exported maps in `outputs/figures/`.
