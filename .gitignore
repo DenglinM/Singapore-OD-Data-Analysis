@@ -1,50 +1,92 @@
-# History files
+# =========================================================
+# 数据文件：原始数据和中间数据一律不提交（体积大 / 可能有使用许可限制）
+# 数据获取方式写在 data/README.md
+# =========================================================
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/README.md
+
+# 仓库任何位置的大型数据 / 压缩包
+*.zip
+*.7z
+*.rar
+*.parquet
+*.feather
+
+# =========================================================
+# R / RStudio
+# =========================================================
 .Rhistory
 .Rapp.history
-
-# Session Data files
 .RData
 .RDataTmp
-
-# User-specific files
 .Ruserdata
-
-# Example code in package build process
+.Rproj.user/
 *-Ex.R
-
-# Output files from R CMD build
 /*.tar.gz
-
-# Output files from R CMD check
 /*.Rcheck/
 
-# RStudio files
-.Rproj.user/
-
-# produced vignettes
-vignettes/*.html
-vignettes/*.pdf
-
-# OAuth2 token, see https://github.com/hadley/httr/releases/tag/v0.3
-.httr-oauth
-
-# knitr and R markdown default cache directories
+# knitr / R Markdown / Quarto 缓存与中间文件
 *_cache/
 /cache/
-
-# Temporary files created by R markdown
 *.utf8.md
 *.knit.md
+/.quarto/
+*_files/
 
-# R Environment Variables
+# 密钥 / 环境变量（例如 LTA DataMall 的 AccountKey）
 .Renviron
 .env
+.httr-oauth
 
-# pkgdown site
-docs/
+# renv 本地库（renv.lock 需要提交，库本身不提交）
+renv/library/
+renv/local/
+renv/staging/
+renv/cellar/
+renv/python/
 
-# translation temp files
+rsconnect/
 po/*~
 
-# RStudio Connect folder
-rsconnect/
+# =========================================================
+# ArcGIS Pro
+# 工程文件 .aprx 和工具箱 .atbx 可以提交；以下为缓存、锁文件和本地数据
+# =========================================================
+arcgis/**/*.gdb/
+arcgis/**/ImportLog/
+arcgis/**/Index/
+arcgis/**/.backups/
+arcgis/**/GpMessages/
+*.lock
+!renv.lock
+*.aprx.bak
+*.atbx.bak
+*.sr.lock
+*.tpkx
+*.vtpk
+*.mpkx
+
+# =========================================================
+# 输出：图表和小表格可以提交；大文件请勿提交
+# =========================================================
+outputs/**/*.tif
+outputs/**/*.tiff
+outputs/**/*.gpkg
+outputs/**/*.shp
+outputs/**/*.shx
+outputs/**/*.dbf
+outputs/**/*.prj
+outputs/**/*.cpg
+
+# =========================================================
+# 系统 / 编辑器
+# =========================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*
+.vscode/
+.idea/
