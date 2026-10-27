@@ -1,0 +1,14 @@
+# Normalise line endings so Windows / macOS users don't produce whole-file diffs
+* text=auto
+*.R    text eol=lf
+*.Rmd  text eol=lf
+*.qmd  text eol=lf
+*.md   text eol=lf
+
+# Binary files: never merge as text
+*.qgz    binary
+*.qgs    text eol=lf
+*.png    binary
+*.jpg    binary
+*.pdf    binary
+*.xlsx   binary
