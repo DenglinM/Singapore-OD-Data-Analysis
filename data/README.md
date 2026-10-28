@@ -33,3 +33,5 @@ Read it in R with `Sys.getenv("LTA_ACCOUNT_KEY")`.
 ## Sharing large files
 
 Raw CSVs and spatial data (Shapefile, GeoPackage, etc.) are large. Share them through the group's cloud drive (OneDrive / Google Drive, etc.) and put the link here. Do not put them in Git.
+
+Onedrive link: [text](https://nusu-my.sharepoint.com/:f:/g/personal/e1583077_u_nus_edu/IgAazAbWTvmdSbwt_ErRwruHAR8DgD0wtEHqtthyC1Jkmjs?e=jRJYmq)
