@@ -1,6 +1,6 @@
 ---
 title: "Project"
-author: '''Aya'''
+author: "Aya"
 date: "`r Sys.Date()`"
 output: html_document
 ---
@@ -9,101 +9,42 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r message=FALSE, warning=FALSE}
-library(ggplot2)
+```{r libraries, message=FALSE, warning=FALSE}
+library(tidyverse) # also attaches ggplot2, dplyr, readr, etc.
 library(scales)
 library(patchwork)
-library(tidyverse)
 library(sf)
 library(RColorBrewer)
 library(kableExtra)
 library(here)
-library(arrow) # This plugin is primarily used to quickly load large CSV files.
+library(arrow) # fast CSV reading and lazy queries on large Parquet data
+
+source(here("R", "od_io.R"))
 ```
 
-```{r}
-# OD file mapping matrix, od_xxxx = od_20xx,xx month
-# ODT/Bxx_dfs = OD, Train/Bus, 20xx, dfs
+```{r build-od-parquet}
+# The raw OD CSVs are far larger than memory (bus: ~18 GB in total), so we do
+# not load them all at once. Instead, every monthly CSV in data/raw/OD/ is
+# converted once into a Parquet dataset in data/processed/od_parquet/
+# (about 8x smaller on disk). Months already converted are skipped, so this
+# chunk is slow only the first time and after new months are downloaded.
+build_od_parquet()
 
-# This measure is intended to prevent significant slowdowns caused by directly 
-# loading large datasets each time (datasets are typically larger than 
-# the available memory).
-
-odT20_dfs <- c(
-  "od_2001", "od_2002", "od_2003", "od_2004", "od_2005", "od_2006",
-  "od_2007", "od_2008", "od_2009", "od_2010", "od_2011", "od_2012"
-)
-
-odB20_dfs <- c(
-  "od_2001", "od_2002", "od_2003", "od_2004", "od_2005", "od_2006",
-  "od_2007", "od_2008", "od_2009", "od_2010", "od_2011", "od_2012"
-)
-
-mode_map <- c("T" = "train", "B" = "bus")
-
-# Going forward, you can simply copy this code chunk as needed. Just change “odT20_dfs” in the for loop (df_name in odT20_dfs). Then, you'll also need to change the name in the following code: `list_name <- deparse(substitute(odT20_dfs))` (for example, change it to `odB20_dfs`).
-for (df_name in odT20_dfs) {
-  list_name <- deparse(substitute(odT20_dfs))
-  mode_flag <- substr(list_name, 3, 3)
-  
-  if (mode_flag == "T") {
-    mode_name <- "train"
-  } else if (mode_flag == "B") {
-    mode_name <- "bus"
-  } else {
-    stop(paste("Unreadable, the identifier is neither 'T', or 'B'", list_name))
-  }
-  
-  yymm <- substr(df_name, 4, 7)
-  yyyymm <- paste0("20", yymm)
-  
-  file_path <- here("data", "raw", "OD", 
-                  paste0("origin_destination_", mode_name, "_", yyyymm, ".csv"))
-  
-  temp_df <- read_csv_arrow(
-    file_path,
-    col_select = c(
-      "YEAR_MONTH", "DAY_TYPE", "TIME_PER_HOUR",
-      "ORIGIN_PT_CODE", "DESTINATION_PT_CODE", "TOTAL_TRIPS"
-      )
-  )
-  
-  assign(paste0("od_", mode_name, "_", yyyymm), temp_df)
-  
-  rm(temp_df)
-  gc()
-}
-
-for (df_name in odB20_dfs) {
-  list_name <- deparse(substitute(odB20_dfs))
-  mode_flag <- substr(list_name, 3, 3)
-  
-  if (mode_flag == "T") {
-    mode_name <- "train"
-  } else if (mode_flag == "B") {
-    mode_name <- "bus"
-  } else {
-    stop(paste("Unreadable, the identifier is neither 'T', or 'B'", list_name))
-  }
-  
-  yymm <- substr(df_name, 4, 7)
-  yyyymm <- paste0("20", yymm)
-  
-  file_path <- here("data", "raw", "OD", 
-                  paste0("origin_destination_", mode_name, "_", yyyymm, ".csv"))
-  
-  temp_df <- read_csv_arrow(
-    file_path,
-    col_select = c(
-      "YEAR_MONTH", "DAY_TYPE", "TIME_PER_HOUR",
-      "ORIGIN_PT_CODE", "DESTINATION_PT_CODE", "TOTAL_TRIPS"
-      )
-  )
-  
-  assign(paste0("od_", mode_name, "_", yyyymm), temp_df)
-  
-  rm(temp_df)
-  gc()
-}
+od <- open_od() # lazy: nothing is read into memory yet
+od
 ```
 
+```{r load-od-2020}
+# Filter first, then collect() only the rows you need. MODE is "train" or
+# "bus"; YYYYMM is an integer such as 202001. Bus stop codes stay as text, so
+# leading zeros (e.g. "01012") are kept for joining with spatial data.
+od_train_2020 <- od |>
+  filter(MODE == "train", YYYYMM >= 202001, YYYYMM <= 202012) |>
+  collect()
+
+# A full year of bus OD still needs several GB of RAM once collected. Where
+# possible, summarise() before collect() so arrow does the work on disk.
+od_bus_2020 <- od |>
+  filter(MODE == "bus", YYYYMM >= 202001, YYYYMM <= 202012) |>
+  collect()
+```
