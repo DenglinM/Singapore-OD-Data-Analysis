@@ -13,12 +13,17 @@ Files in `data/raw/` and `data/processed/` are **not committed to GitHub** (see 
 
 | Dataset | Source | Local path | Notes |
 |---|---|---|---|
-| Origin-Destination Train (monthly station-to-station OD volume) | LTA DataMall, Dynamic Datasets → Passenger Volume by Origin Destination Train Stations | `data/raw/od_train/origin_destination_train_YYYYMM.csv` | Requires a DataMall AccountKey; only the last 3 months are available |
+| Origin-Destination Train (monthly station-to-station OD volume) | LTA DataMall, Dynamic Datasets → Passenger Volume by Origin Destination Train Stations | `data/raw/OD/origin_destination_train_YYYYMM.csv` | Requires a DataMall AccountKey; only the last 3 months are available |
+| Origin-Destination Bus (monthly stop-to-stop OD volume) | LTA DataMall, Dynamic Datasets → Passenger Volume by Origin Destination Bus Stops | `data/raw/OD/origin_destination_bus_YYYYMM.csv` | Bus stop codes have leading zeros; read them as text (see `R/od_io.R`) |
 | Passenger Volume by Train Stations (tap-in / tap-out) | LTA DataMall | `data/raw/station_volume/transport_node_train_YYYYMM.csv` | As above |
 | MRT station locations / exits | LTA DataMall (Static Datasets → Train Station Exit Point, etc.) | `data/raw/spatial/` | CRS is SVY21 (EPSG:3414) |
 | Land use (Master Plan Land Use) | data.gov.sg / URA Master Plan | `data/raw/spatial/` | |
 
 > When you add a new dataset, add a row to this table and mention it in your PR description.
+
+## Processed data
+
+`scripts/Project R Markdown.Rmd` converts the OD CSVs once into a Parquet dataset at `data/processed/od_parquet/MODE=<train|bus>/YYYYMM=<YYYYMM>/` via `build_od_parquet()` in `R/od_io.R`. It can be deleted and regenerated at any time.
 
 ## Secrets
 
