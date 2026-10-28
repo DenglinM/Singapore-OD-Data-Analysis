@@ -10,7 +10,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r message=FALSE, warning=FALSE}
-library(ggplot2)
 library(scales)
 library(patchwork)
 library(tidyverse)
@@ -19,54 +18,28 @@ library(RColorBrewer)
 library(kableExtra)
 library(here)
 library(arrow) # This plugin is primarily used to quickly load large CSV files.
+source(here("R", "od_io.R"))
 ```
 
 ```{r}
-# OD file mapping matrix, od_xxxx = od_20xx,xx month
-# ODT/Bxx_dfs = OD, Train/Bus, 20xx, dfs
-
-# This measure is intended to prevent significant slowdowns caused by directly 
-# loading large datasets each time (datasets are typically larger than 
-# the available memory).
-
-odT20_dfs <- c(
-  "od_2001", "od_2002", "od_2003", "od_2004", "od_2005", "od_2006",
-  "od_2007", "od_2008", "od_2009", "od_2010", "od_2011", "od_2012"
-)
-
-mode_map <- c("T" = "train", "B" = "bus")
-
-# Going forward, you can simply copy this code chunk as needed. Just change “odT20_dfs” in the for loop (df_name in odT20_dfs).
-for (df_name in odT20_dfs) {
-  list_name <- deparse(substitute(odT20_dfs))
-  mode_flag <- substr(list_name, 3, 3)
-  
-  if (mode_flag == "T") {
-    mode_name <- "train"
-  } else if (mode_flag == "B") {
-    mode_name <- "bus"
-  } else {
-    stop(paste("Unreadable, the identifier is neither 'T', or 'B'", list_name))
-  }
-  
-  yymm <- substr(df_name, 4, 7)
-  yyyymm <- paste0("20", yymm)
-  
-  file_path <- here("data", "raw", "OD", 
-                  paste0("origin_destination_", mode_name, "_", yyyymm, ".csv"))
-  
-  temp_df <- read_csv_arrow(
-    file_path,
-    col_select = c(
-      "YEAR_MONTH", "DAY_TYPE", "TIME_PER_HOUR",
-      "ORIGIN_PT_CODE", "DESTINATION_PT_CODE", "TOTAL_TRIPS"
-      )
-  )
-  
-  assign(paste0("od_", mode_name, "_", yyyymm), temp_df)
-  
-  rm(temp_df)
-  gc()
-}
+build_od_parquet()
+od <- open_od() # lazy: nothing is read into memory yet
+od
 ```
+
+```{r load-od-2020}
+# Filter first, then collect() only the rows you need. MODE is "train" or
+# "bus"; YYYYMM is an integer such as 202001. Bus stop codes stay as text, so
+# leading zeros (e.g. "01012") are kept for joining with spatial data.
+dfB20 <- c(202003, 202006, 202009, 202012)
+
+od_bus_2020 <- od |>
+  filter(MODE == "bus", YYYYMM %in% dfB20) |>
+  collect()
+```
+
+```{r}
+head(od_bus_2020)
+```
+
 
