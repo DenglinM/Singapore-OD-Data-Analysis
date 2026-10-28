@@ -17,11 +17,55 @@ library(tidyverse)
 library(sf)
 library(RColorBrewer)
 library(kableExtra)
-library(arrow)
+library(here)
+library(arrow) # This plugin is primarily used to quickly load large CSV files.
 ```
 
 ```{r}
-list_os_opendata()
-list_os_datapackages()
+# OD file mapping matrix, od_xxxx = od_20xx,xx month
+# ODT/Bxx_dfs = OD, Train/Bus, 20xx, dfs
+
+# This measure is intended to prevent significant slowdowns caused by directly 
+# loading large datasets each time (datasets are typically larger than 
+# the available memory).
+
+odT20_dfs <- c(
+  "od_2001", "od_2002", "od_2003", "od_2004", "od_2005", "od_2006",
+  "od_2007", "od_2008", "od_2009", "od_2010", "od_2011", "od_2012"
+)
+
+mode_map <- c("T" = "train", "B" = "bus")
+
+for (df_name in odT20_dfs) {
+  list_name <- deparse(substitute(odT20_dfs))
+  mode_flag <- substr(list_name, 3, 3)
+  
+  if (mode_flag == "T") {
+    mode_name <- "train"
+  } else if (mode_flag == "B") {
+    mode_name <- "bus"
+  } else {
+    stop(paste("Unreadable, the identifier is neither 'T', or 'B'", list_name))
+  }
+  
+  yymm <- substr(df_name, 4, 7)
+  yyyymm <- paste0("20", yymm)
+  
+  file_path <- here("data", "raw", "OD", 
+                  paste0("origin_destination_", mode_name, "_", yyyymm, ".csv"))
+  
+  temp_df <- read_csv_arrow(
+    file_path,
+    col_select = c(
+      "YEAR_MONTH", "DAY_TYPE", "TIME_PER_HOUR",
+      "ORIGIN_PT_CODE", "DESTINATION_PT_CODE", "TOTAL_TRIPS"
+      )
+  )
+  
+  assign(paste0("od_", mode_name, "_", yyyymm), temp_df)
+  
+  rm(temp_df)
+  gc()
+}
 ```
 
