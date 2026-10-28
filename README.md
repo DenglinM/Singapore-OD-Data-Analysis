@@ -7,6 +7,13 @@ An analysis of origin-destination (OD) ridership data from Singapore's public tr
 
 Tools: **R / RStudio** is the main analysis platform (spatial data handled with `sf`). **QGIS**, which is free and open source so every team member can use it, is used for mapping and checking spatial data.
 
+Study Proposal:
+
+This study aims to examine whether the three regional hubs designated under **Singapore’s decentralization strategy**: *Jurong East, Tampines, and Woodlands*, have effectively promoted travel within their respective regions and reduced reliance on long-distance commuting (to the Central CBD). This study will utilize **Mass Rapid Transit (MRT)** *origin-destination (OD) data* to analyze passenger flow connections during weekday peak hours among the regional hubs, surrounding residential areas, the Central Business District, and other parts of Singapore. 
+
+The study will compare and evaluate the actual performance of these three regional hubs using indicators such as the proportion of intra-regional trips, median trip distance, destination distribution, and peak-hour inbound passenger flow. In addition, the study will integrate external land-use data to examine whether differences in residential, commercial, and employment-related land uses can explain the variations in passenger flow patterns among the centers. Particular attention will be paid to residential floor area ratios and community population distributions; the study will employ normalization to identify the specific percentage contributions of each relevant residential community and avoid inherent biases resulting from the failure to account for community population size.
+
+
 ## Repository structure
 
 ```
