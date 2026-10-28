@@ -36,6 +36,7 @@ odT20_dfs <- c(
 
 mode_map <- c("T" = "train", "B" = "bus")
 
+# Going forward, you can simply copy this code chunk as needed. Just change “odT20_dfs” in the for loop (df_name in odT20_dfs).
 for (df_name in odT20_dfs) {
   list_name <- deparse(substitute(odT20_dfs))
   mode_flag <- substr(list_name, 3, 3)
