@@ -9,8 +9,15 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
-library(osdatahub)
+```{r message=FALSE, warning=FALSE}
+library(ggplot2)
+library(scales)
+library(patchwork)
+library(tidyverse)
+library(sf)
+library(RColorBrewer)
+library(kableExtra)
+library(arrow)
 ```
 
 ```{r}
