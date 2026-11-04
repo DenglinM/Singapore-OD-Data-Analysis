@@ -67,3 +67,22 @@ od_train_2026 <- od |>
   collect()
 ```
 
+```{r}
+months_sel <- c(dfT24, dfT25, dfT26)
+
+od_train_24_26 <- od |>
+  filter(MODE == "train", YYYYMM %in% months_sel) |>
+  collect() |>
+  mutate(
+    YEAR  = YYYYMM %/% 100L,
+    MONTH = YYYYMM %% 100L,
+    period = case_when(
+      DAY_TYPE == "WEEKDAY" & TIME_PER_HOUR %in% c(6, 7, 8, 9) ~ "AM peak",
+      DAY_TYPE == "WEEKDAY" & TIME_PER_HOUR %in% c(17, 18, 19, 20) ~ "PM peak",
+      DAY_TYPE == "WEEKDAY"                                     ~ "Weekday off-peak",
+      TRUE                                                      ~ "Weekend/holiday"
+    )
+  )
+
+count(od_train_24_26, YEAR, MONTH)
+```
