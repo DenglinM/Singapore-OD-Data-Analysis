@@ -4,7 +4,7 @@
 
 ## 当前可验证的范围
 
-已检查仓库的 `R/od_io.R` 和三份 R Markdown：OD 端点列是 `ORIGIN_PT_CODE`、`DESTINATION_PT_CODE`，公交代码按字符读取；Parquet 位于 `data/processed/od_parquet/`。原始空间数据和真实 OD 未提交到仓库，本地项目镜像的 `sources/` 也是空的，因此这里没有真实车站匹配数量或真实 lookup CSV 可以交付。引用聊天中的图片/附件也不可访问。
+已检查仓库的 `R/od_io.R` 和三份 R Markdown：OD 端点列是 `ORIGIN_PT_CODE`、`DESTINATION_PT_CODE`，公交代码按字符读取；Parquet 位于 `data/processed/od_parquet/`。随后用户提供了本地 GeoJSON，已完成真实空间预览，结果见 [GeoJSON 运行记录](step1_geojson_validation.md)。MRT 尚缺站名与 OD 代码对照表，OD 全量覆盖尚未验证。
 
 新增流程已通过模拟数据测试：同区多出口、重复出口、跨区出口、边界点、区外点、空几何、CRS 转换、同一公交代码多坐标、换乘站代码顺序、缺失代码、人工修订、真实文件读写、分块 OD 扫描，以及连接两端后 OD 行数/流量不变。真实数据运行前须核实文件字段和年份。
 
@@ -28,6 +28,10 @@ install.packages(c("sf", "readr"))
 来源：[data.gov.sg](https://data.gov.sg/) 的 URA Master Plan 2019 subzone 数据、[LTA DataMall](https://datamall.lta.gov.sg/) 的出口与公交站数据。仓库 `data/README.md` 有小组共享盘链接。这里没有自动下载，也不需要在脚本中填写 AccountKey。
 
 修改 `config/spatial_join.R` 的文件路径、图层名和字段名。示例字段名仅是占位约定，不能保证与你下载的版本一致。Shapefile 需要完整配套 `.shp/.shx/.dbf/.prj`；GeoPackage 若有多个图层，必须填写 `layer`。可这样检查：
+
+当前默认配置已经适配用户提供的三份 GeoJSON 和实际字段，无需编辑 JSON 内容。将文件放到 `data/raw/spatial/`，或用 `Sys.setenv(AR5302_SPATIAL_DIR="你的数据文件夹路径")` 指向已有数据目录。`AR5302_OD_DIR` 可以单独指向已有 OD 文件夹；不需要移动或修改原始文件。
+
+尚未准备好 station-code crosswalk 时，先运行 `source("scripts/04_spatial_preview.R")`。该预览导出按站名汇总的空间结果、公交 lookup 和待填写代码模板；明确跳过 OD 覆盖检查并允许待核查结果。严格验证仍运行 `04_spatial_join.R`。缺少 crosswalk 时，MRT 按代码的 lookup 只有列名，没有数据行；不要把它当作完成的 OD lookup。
 
 ```r
 sf::st_layers("data/raw/spatial/your_file.gpkg")

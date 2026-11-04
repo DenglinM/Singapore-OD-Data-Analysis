@@ -169,7 +169,7 @@ apply_overrides <- function(lookup, overrides, mode, key_col, zones) {
 finish_lookup <- function(x, key_col, zones) {
   if (anyNA(x[[key_col]]) || anyDuplicated(x[[key_col]])) stop("Lookup keys must be unique and present")
   x$subzone_name <- zones$subzone_name[match(x$subzone_code, zones$subzone_code)]
-  x$boundary_year <- 2019L
+  x$boundary_year <- rep(2019L, nrow(x))
   x$join_ready <- !is.na(x$subzone_code)
   x[order(x[[key_col]]), , drop = FALSE]
 }
@@ -223,7 +223,9 @@ run_spatial_join <- function(config) {
   require_columns(stops, config$bus$key, "bus stops")
   mr <- build_lookup(exits, normalise_station_key(exits[[config$mrt$key]]), zones, "train")
   bu <- build_lookup(stops, normalise_node_code(stops[[config$bus$key]], "bus"), zones, "bus")
-  crosswalk <- read_text_csv(config$crosswalk)
+  crosswalk_available <- !is.null(config$crosswalk) && file.exists(config$crosswalk)
+  crosswalk <- if (crosswalk_available) read_text_csv(config$crosswalk) else
+    data.frame(station_key = character(), station_code = character())
   mrt <- align_stations(mr$lookup, crosswalk)
   bus <- bu$lookup
   names(bus)[names(bus) == "node_id"] <- "bus_stop_code"
@@ -238,6 +240,12 @@ run_spatial_join <- function(config) {
   write <- function(x, name) readr::write_csv(x, file.path(config$output_dir, paste0(name, ".csv")), na = "")
   write(mrt, "mrt_station_subzone_lookup")
   write(bus, "bus_stop_subzone_lookup")
+  by_name <- mr$lookup
+  names(by_name)[names(by_name) == "node_id"] <- "station_key"
+  by_name <- finish_lookup(by_name, "station_key", zones)
+  write(by_name, "mrt_station_name_subzone_lookup")
+  write(by_name[!by_name$join_ready, , drop = FALSE], "mrt_station_names_unresolved")
+  write(data.frame(station_key = mr$lookup$node_id, station_code = ""), "station_code_crosswalk_template")
   write(mr$point_matches, "mrt_exit_matches")
   write(bu$point_matches, "bus_point_matches")
   write(mr$duplicates, "mrt_duplicate_points")
@@ -246,14 +254,15 @@ run_spatial_join <- function(config) {
   write(mrt[!mrt$join_ready, , drop = FALSE], "mrt_unresolved")
   write(bus[!bus$join_ready, , drop = FALSE], "bus_unresolved")
   write(coverage, "od_code_coverage")
-  summary <- data.frame(check = c("mrt_codes", "bus_codes", "mrt_unresolved", "bus_unresolved",
+  summary <- data.frame(check = c("mrt_station_names", "mrt_station_names_unresolved", "mrt_codes", "bus_codes", "mrt_unresolved", "bus_unresolved",
     "mrt_keys_without_codes", "od_codes_checked", "od_codes_unresolved"),
-    count = c(nrow(mrt), nrow(bus), sum(!mrt$join_ready), sum(!bus$join_ready), nrow(unaligned),
+    count = c(nrow(by_name), sum(!by_name$join_ready), nrow(mrt), nrow(bus), sum(!mrt$join_ready), sum(!bus$join_ready), nrow(unaligned),
               nrow(coverage), sum(coverage$coverage_status != "matched")))
   write(summary, "validation_summary")
   saveRDS(config, file.path(config$output_dir, "run_config.rds"))
   capture.output(utils::sessionInfo(), file = file.path(config$output_dir, "session_info.txt"))
   print(summary, row.names = FALSE)
+  if (!crosswalk_available) warning("Station-code crosswalk missing: MRT spatial results by station name were exported; OD-ready MRT lookup has no rows. Fill the generated template and rerun.")
   if (!nrow(codes)) warning("OD coverage NOT CHECKED: supply raw OD CSVs or od_inventory")
   issues <- any(!mrt$join_ready) || any(!bus$join_ready) || nrow(unaligned) > 0L ||
     any(coverage$coverage_status != "matched") || (!nrow(codes) && isTRUE(config$require_od_coverage))

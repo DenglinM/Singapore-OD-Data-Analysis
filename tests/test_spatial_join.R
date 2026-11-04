@@ -69,4 +69,9 @@ expect_error(suppressWarnings(run_spatial_join(cfg)))
 cfg$strict <- FALSE
 unchecked <- suppressWarnings(run_spatial_join(cfg))
 stopifnot(nrow(unchecked$coverage) == 0L, file.exists(file.path(cfg$output_dir, "validation_summary.csv")))
+cfg$crosswalk <- file.path(tmp, "not_supplied.csv")
+partial <- suppressWarnings(run_spatial_join(cfg))
+stopifnot(nrow(partial$mrt) == 0L, nrow(partial$bus) == 2L,
+  nrow(read_text_csv(file.path(cfg$output_dir, "mrt_station_name_subzone_lookup.csv"))) == 2L,
+  nrow(read_text_csv(file.path(cfg$output_dir, "station_code_crosswalk_template.csv"))) == 2L)
 cat("All STEP 1 spatial join tests passed.\n")
