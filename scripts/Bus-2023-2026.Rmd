@@ -1,0 +1,140 @@
+---
+title: "Bus-2023-2026"
+author: '''Aya'''
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(scales)
+library(patchwork)
+library(sf)
+library(RColorBrewer)
+library(kableExtra)
+library(here)
+library(arrow)
+
+source(here("R", "od_io.R"))
+```
+
+```{r build-od-parquet}
+# The raw OD CSVs are far larger than memory (bus: ~18 GB in total), so we do
+# not load them all at once. Instead, every monthly CSV in data/raw/OD/ is
+# converted once into a Parquet dataset in data/processed/od_parquet/
+# (about 8x smaller on disk). Months already converted are skipped, so this
+# chunk is slow only the first time and after new months are downloaded.
+build_od_parquet()
+
+od  <- open_od() # lazy: nothing is read into memory yet
+od 
+```
+
+```{r load-od-2020}
+# Filter first, then collect() only the rows you need. MODE is "train" or
+# "bus"; YYYYMM is an integer such as 202001. Bus stop codes stay as text, so
+# leading zeros (e.g. "01012") are kept for joining with spatial data.
+dfB23 <- c(202303, 202306, 202309, 202312)
+dfB24 <- c(202403, 202406, 202409, 202412)
+dfB25 <- c(202503, 202506, 202509, 202512)
+dfB26 <- c(202603, 202606, 202609)
+
+od_bus_2023 <- od %>% 
+  filter(MODE == "bus", YYYYMM %in% dfB23) %>% 
+  collect()
+
+od_bus_2024 <- od %>% 
+  filter(MODE == "bus", YYYYMM %in% dfB24) %>% 
+  collect()
+
+od_bus_2025 <- od %>% 
+  filter(MODE == "bus", YYYYMM %in% dfB25) %>% 
+  collect()
+
+od_bus_2026 <- od %>% 
+  filter(MODE == "bus", YYYYMM %in% dfB26) %>% 
+  collect()
+```
+
+```{r}
+head(od_bus_2023)
+```
+
+```{r}
+subzone <- read_sf(here("data", "raw", "MasterPlan2019SubzoneBoundaryNoSeaGEOJSON.geojson"))
+busStops <- read_sf(here("data", "raw", "LTABusStop.geojson"))
+
+subzone  <- st_transform(subzone, crs = 3414)
+busStops <- st_transform(busStops, crs = 3414)
+
+peakHour <- c(6,7,8,9,17,18,19,20)
+
+area_center <- c("PHILLIP", "RAFFLES PLACE", "BAYFRONT SUBZONE", "NICOLL", "ANSON", "TANJONG PAGAR", "MAXWELL", "CECIL", "CENTRAL SUBZONE", "BUGIS", "MARINA CENTRE", "CITY HALL")
+area_jurong <- c("JURONG GATEWAY", "INTERNATIONAL BUSINESS PARK", "LAKESIDE (LEISURE)", "LAKESIDE (BUSINESS)" )
+area_woodlands <- c("NORTH COAST", "WOODLANDS REGIONAL CENTRE")
+area_tampines <- c("TAMPINES NORTH", "TAMPINES WEST", "TAMPINES EAST")
+```
+
+
+```{r}
+busStops_center <- busStops %>%
+  st_filter(
+    subzone %>% filter(SUBZONE_N %in% area_center),
+    .predicate = st_intersects
+  )
+
+busStops_jurong <- busStops %>%
+  st_filter(
+    subzone %>% filter(SUBZONE_N %in% area_jurong),
+    .predicate = st_intersects
+  )
+
+busStops_woodlands <- busStops %>%
+  st_filter(
+    subzone %>% filter(SUBZONE_N %in% area_woodlands),
+    .predicate = st_intersects
+  )
+
+busStops_tampines <- busStops %>%
+  st_filter(
+    subzone %>% filter(SUBZONE_N %in% area_tampines),
+    .predicate = st_intersects
+  )
+```
+
+```{r}
+od_bus_2023 <- od_bus_2023 %>%
+  filter(
+    (DAY_TYPE == "WEEKDAY" & TIME_PER_HOUR %in% peakHour) |
+    (DAY_TYPE == "WEEKENDS/HOLIDAY")
+  )
+
+od_bus_2024 <- od_bus_2024 %>%
+  filter(
+    (DAY_TYPE == "WEEKDAY" & TIME_PER_HOUR %in% peakHour) |
+    (DAY_TYPE == "WEEKENDS/HOLIDAY")
+  )
+
+od_bus_2025 <- od_bus_2025 %>%
+  filter(
+    (DAY_TYPE == "WEEKDAY" & TIME_PER_HOUR %in% peakHour) |
+    (DAY_TYPE == "WEEKENDS/HOLIDAY")
+  )
+
+od_bus_2026 <- od_bus_2026 %>%
+  filter(
+    (DAY_TYPE == "WEEKDAY" & TIME_PER_HOUR %in% peakHour) |
+    (DAY_TYPE == "WEEKENDS/HOLIDAY")
+  )
+```
+
+
+
+
+
+
+
