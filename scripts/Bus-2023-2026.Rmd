@@ -30,24 +30,39 @@ source(here("R", "od_io.R"))
 # chunk is slow only the first time and after new months are downloaded.
 build_od_parquet()
 
-|>  <- open_od() # lazy: nothing is read into memory yet
-|> 
+od  <- open_od() # lazy: nothing is read into memory yet
+od 
 ```
 
 ```{r load-od-2020}
 # Filter first, then collect() only the rows you need. MODE is "train" or
 # "bus"; YYYYMM is an integer such as 202001. Bus stop codes stay as text, so
 # leading zeros (e.g. "01012") are kept for joining with spatial data.
-dfB20 <- c(202303, 202306, 202309, 202312,
-           202403, 202406, 202409, 202412,
-           202503, 202506, 202509, 202512,
-           202603, 202606, 202609)
+dfB23 <- c(202303, 202306, 202309, 202312)
+dfB24 <- c(202403, 202406, 202409, 202412)
+dfB25 <- c(202503, 202506, 202509, 202512)
+dfB26 <- c(202603, 202606, 202609)
 
-od_bus_2020 <- dfB20 %>% 
-  filter(MODE == "bus", YYYYMM %in% dfB20) %>% 
+od_bus_2023 <- od %>% 
+  filter(MODE == "bus", YYYYMM %in% dfB23) %>% 
+  collect()
+
+od_bus_2024 <- od %>% 
+  filter(MODE == "bus", YYYYMM %in% dfB24) %>% 
+  collect()
+
+od_bus_2025 <- od %>% 
+  filter(MODE == "bus", YYYYMM %in% dfB25) %>% 
+  collect()
+
+od_bus_2026 <- od %>% 
+  filter(MODE == "bus", YYYYMM %in% dfB26) %>% 
   collect()
 ```
 
+```{r}
+head(od_bus_2023)
+```
 
 
 
