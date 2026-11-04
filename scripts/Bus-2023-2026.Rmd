@@ -84,9 +84,25 @@ busStops_center <- busStops %>%
     subzone %>% filter(SUBZONE_N %in% area_center),
     .predicate = st_intersects
   )
+
+busStops_jurong <- busStops %>%
+  st_filter(
+    subzone %>% filter(SUBZONE_N %in% area_jurong),
+    .predicate = st_intersects
+  )
+
+busStops_woodlands <- busStops %>%
+  st_filter(
+    subzone %>% filter(SUBZONE_N %in% area_woodlands),
+    .predicate = st_intersects
+  )
+
+busStops_tampines <- busStops %>%
+  st_filter(
+    subzone %>% filter(SUBZONE_N %in% area_tampines),
+    .predicate = st_intersects
+  )
 ```
-
-
 
 
 
