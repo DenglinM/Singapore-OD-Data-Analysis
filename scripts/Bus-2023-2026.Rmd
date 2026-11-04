@@ -64,6 +64,22 @@ od_bus_2026 <- od %>%
 head(od_bus_2023)
 ```
 
+```{r}
+subzone <- read_sf(here("data", "raw", "MasterPlan2019SubzoneBoundaryNoSeaGEOJSON.geojson"))
+busStops <- read_sf(here("data", "raw", "LTABusStop.geojson"))
+subzone  <- st_transform(subzone, crs = 3414)
+busStops <- st_transform(busStops, crs = 3414)
+```
+
+
+```{r}
+area_center <- c("PHILLIP", "RAFFLES PLACE", "BAYFRONT SUBZONE", "NICOLL", "ANSON", "TANJONG PAGAR", "MAXWELL", "CECIL", "CENTRAL SUBZONE", "BUGIS", "MARINA CENTRE", "CITY HALL")
+area_jurong <- c("JURONG GATEWAY", "INTERNATIONAL BUSINESS PARK", "LAKESIDE (LEISURE)", "LAKESIDE (BUSINESS)" )
+area_woodlands <- c("NORTH COAST", "WOODLANDS REGIONAL CENTRE")
+area_tampines <- c("TAMPINES NORTH", "TAMPINES WEST", "TAMPINES EAST")
+
+busStops_center <- 
+```
 
 
 
