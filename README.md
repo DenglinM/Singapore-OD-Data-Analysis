@@ -45,6 +45,8 @@ The study will compare and evaluate the actual performance of these three region
 
 ## About data files
 
+For STEP 1 MRT/bus-to-2019-subzone matching, follow the [spatial join run guide](docs/step1_spatial_join.md), configure `config/spatial_join.R`, and run `scripts/04_spatial_join.R`. The script exports unique node lookup CSVs and audit tables and checks the observed OD codes before downstream joins.
+
 **Do not commit raw data or large files to GitHub.** The OD data is hundreds of MB per month, GitHub rejects files over 100 MB, and once a large file enters the repo it stays in the history even after deletion, slowing every clone. `.gitignore` already excludes `data/raw/`, `data/processed/`, archives and QGIS backup files. Share large files through the group's cloud drive and put the link in `data/README.md`.
 
 ## Collaboration

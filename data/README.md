@@ -40,3 +40,20 @@ Read it in R with `Sys.getenv("LTA_ACCOUNT_KEY")`.
 Raw CSVs and spatial data (Shapefile, GeoPackage, etc.) are large. Share them through the group's cloud drive (OneDrive / Google Drive, etc.) and put the link here. Do not put them in Git.
 
 Onedrive link: [text](https://nusu-my.sharepoint.com/:f:/g/personal/e1583077_u_nus_edu/IgAazAbWTvmdSbwt_ErRwruHAR8DgD0wtEHqtthyC1Jkmjs?e=jRJYmq)
+
+
+## STEP 1 spatial joining
+
+See [the STEP 1 run guide](../docs/step1_spatial_join.md) and edit `config/spatial_join.R` before running `scripts/04_spatial_join.R`.
+
+| Dataset | Source | Local path / convention | Notes |
+|---|---|---|---|
+| Master Plan 2019 Subzone Boundary | URA via data.gov.sg / group shared drive | `data/raw/spatial/MP2019_Subzone.gpkg` (configurable) | Must be the 2019 polygon boundary; configure code/name fields and layer |
+| Bus stop points | LTA DataMall / group shared drive | `data/raw/spatial/BusStop.shp` or CSV (configurable) | Five-character stop codes; CSV coordinates require explicit CRS |
+| Station name-to-OD-code crosswalk | Team-verified against LTA station metadata and observed OD codes | `data/raw/spatial/station_code_crosswalk.csv` | Columns `station_key,station_code`; explicit aliases, no inferred codes |
+| Reviewed subzone overrides (optional) | Team GIS review with recorded evidence | Configured local CSV | Columns `mode,node_code,subzone_code,reason` |
+
+The exit-point path defaults to `data/raw/spatial/TrainStationExitPoint.shp`; configure the actual filename and station-key field. Spatial files use their own CRS metadata, then transform to EPSG:3414. Do not assume every source is already SVY21. Use node snapshots suitable for the OD study period, including historical stops where needed.
+
+The script writes unique MRT/bus lookup CSVs, point-level matches, duplicates, unresolved matches and OD-code coverage reports under `data/processed/spatial_join/`. Raw inputs, crosswalks, overrides and generated tables remain local and are not committed. No real raw spatial or OD files were available during implementation; the test suite uses synthetic geometries.
+
