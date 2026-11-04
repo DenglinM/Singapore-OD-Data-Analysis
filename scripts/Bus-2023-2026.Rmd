@@ -71,6 +71,8 @@ busStops <- read_sf(here("data", "raw", "LTABusStop.geojson"))
 subzone  <- st_transform(subzone, crs = 3414)
 busStops <- st_transform(busStops, crs = 3414)
 
+peakHour <- c(6,7,8,9,17,18,19,20)
+
 area_center <- c("PHILLIP", "RAFFLES PLACE", "BAYFRONT SUBZONE", "NICOLL", "ANSON", "TANJONG PAGAR", "MAXWELL", "CECIL", "CENTRAL SUBZONE", "BUGIS", "MARINA CENTRE", "CITY HALL")
 area_jurong <- c("JURONG GATEWAY", "INTERNATIONAL BUSINESS PARK", "LAKESIDE (LEISURE)", "LAKESIDE (BUSINESS)" )
 area_woodlands <- c("NORTH COAST", "WOODLANDS REGIONAL CENTRE")
@@ -104,6 +106,31 @@ busStops_tampines <- busStops %>%
   )
 ```
 
+```{r}
+od_bus_2023 <- od_bus_2023 %>%
+  filter(
+    (DAY_TYPE == "WEEKDAY" & TIME_PER_HOUR %in% peakHour) |
+    (DAY_TYPE == "WEEKENDS/HOLIDAY")
+  )
+
+od_bus_2024 <- od_bus_2024 %>%
+  filter(
+    (DAY_TYPE == "WEEKDAY" & TIME_PER_HOUR %in% peakHour) |
+    (DAY_TYPE == "WEEKENDS/HOLIDAY")
+  )
+
+od_bus_2025 <- od_bus_2025 %>%
+  filter(
+    (DAY_TYPE == "WEEKDAY" & TIME_PER_HOUR %in% peakHour) |
+    (DAY_TYPE == "WEEKENDS/HOLIDAY")
+  )
+
+od_bus_2026 <- od_bus_2026 %>%
+  filter(
+    (DAY_TYPE == "WEEKDAY" & TIME_PER_HOUR %in% peakHour) |
+    (DAY_TYPE == "WEEKENDS/HOLIDAY")
+  )
+```
 
 
 
