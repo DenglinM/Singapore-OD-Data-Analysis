@@ -72,6 +72,7 @@ head(od_train_2022)
 head(od_train_2023)
 ```
 
+
 ```{r}
 months_sel <- c(dfT21, dfT22, dfT23)
 
@@ -88,6 +89,4 @@ od_train <- od |>
       TRUE                                                      ~ "Weekend/holiday"
     )
   )
-
-count(od_train, YEAR, MONTH)
 ```
