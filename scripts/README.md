@@ -13,6 +13,7 @@ Analysis scripts, numbered in run order. Running them top to bottom reproduces e
 Conventions:
 
 STEP 1 station/stop-to-2019-subzone matching is implemented in `04_spatial_join.R`.
+Run `03_station_code_crosswalk.R` first to build the official code/name mapping and cached OD-code inventory. This script is independent of the proposed reliability-check script listed above.
 Configure `config/spatial_join.R`, then follow [the run guide](../docs/step1_spatial_join.md).
 The other numbered filenames above describe the intended pipeline; they may not yet exist.
 

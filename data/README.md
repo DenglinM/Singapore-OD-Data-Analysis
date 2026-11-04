@@ -44,6 +44,8 @@ Onedrive link: [text](https://nusu-my.sharepoint.com/:f:/g/personal/e1583077_u_n
 
 ## STEP 1 spatial joining
 
+Official code/name reference: [LTA Train Station Codes and Chinese Names (ZIP)](https://datamall.lta.gov.sg/content/dam/datamall/datasets/Geospatial/Train%20Station%20Codes%20and%20Chinese%20Names.zip). Extract the `.xls` into `data/raw/reference/` or set `AR5302_STATION_REFERENCE`. `scripts/03_station_code_crosswalk.R` uses `readxl` to build the crosswalk from this reference and all observed OD codes; small officially sourced additions are documented in `config/station_reference_supplements.R`. Generated crosswalk, OD code inventory, alignment audit and incremental scan cache live under `data/processed/spatial_join_inputs/`. No Excel or OD data is committed.
+
 See [the STEP 1 run guide](../docs/step1_spatial_join.md) and edit `config/spatial_join.R` before running `scripts/04_spatial_join.R`.
 
 | Dataset | Source | Local path / convention | Notes |

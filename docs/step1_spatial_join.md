@@ -33,6 +33,22 @@ install.packages(c("sf", "readr"))
 
 尚未准备好 station-code crosswalk 时，先运行 `source("scripts/04_spatial_preview.R")`。该预览导出按站名汇总的空间结果、公交 lookup 和待填写代码模板；明确跳过 OD 覆盖检查并允许待核查结果。严格验证仍运行 `04_spatial_join.R`。缺少 crosswalk 时，MRT 按代码的 lookup 只有列名，没有数据行；不要把它当作完成的 OD lookup。
 
+现在也可以用官方代码表自动生成 crosswalk，无需手填：
+
+```r
+install.packages(c("sf", "readr", "readxl")) # 一次性
+Sys.setenv(AR5302_SPATIAL_DIR = "你的 GeoJSON 所在文件夹",
+           AR5302_OD_DIR = "你的 OD CSV 所在文件夹")
+# 将官方压缩包里的 .xls 保存到以下默认位置，或设置 AR5302_STATION_REFERENCE。
+# data/raw/reference/Train Station Codes and Chinese Names.xls
+source("scripts/03_station_code_crosswalk.R")
+source("scripts/04_spatial_join.R")
+```
+
+第一步读取 [LTA 官方代码 Excel](https://datamall.lta.gov.sg/content/dam/datamall/datasets/Geospatial/Train%20Station%20Codes%20and%20Chinese%20Names.zip)，并补充 `config/station_reference_supplements.R` 中有官方来源的少量新站代码。精确匹配英文站名，MRT/LRT 同名站按代码类型分别处理，跨不同站名的复合代码拒绝自动连接。只为实际出现且全部代码指向同一站的 OD 复合代码生成别名。生成结果与代码审计保存在 `data/processed/spatial_join_inputs/`，主配置自动使用它们；手动 crosswalk 可通过 `AR5302_STATION_CROSSWALK` 指定。
+
+首次会扫描所有本地月度 train/bus OD 文件，只提取两端的唯一代码，并按文件路径、大小、修改时间缓存。后续运行复用未改变的文件扫描结果。如果用户替换文件却刻意保留大小和修改时间，应删除 `od_code_cache.rds` 后重建。新增/删除文件后先重跑 `03_station_code_crosswalk.R` 刷新清单，再运行空间连接。所有原始文件保持不变。
+
 ```r
 sf::st_layers("data/raw/spatial/your_file.gpkg")
 x <- sf::st_read("data/raw/spatial/your_file.gpkg", layer = "your_layer")
@@ -67,9 +83,10 @@ readr::write_csv(data.frame(station_key = keys, station_code = ""),
 
 核实后填入代码，并另存到配置的 `crosswalk` 路径。不要直接用空白模板运行。
 
-- 先检查 OD 两端实际出现的代码。`NS1/EW24` 与 `EW24/NS1` 排序后视为同一代码。
+- 先检查 OD 两端实际出现的代码。`NS1/EW24`、`EW24/NS1` 与完整代码构成的 `EW24-NS1` 排序后视为同一代码。
 - 若 OD 还单独出现 `NS1` 或 `EW24`，只有核实它们确实代表同一车站后，才为该 `station_key` 增加相应行；脚本不会拆分复合代码自动推断别名。
 - 不同 OD 别名可以指向同一车站；同一代码不能指向两个车站。
+- 官方证实同名且 OD 复合代码包含 MRT/LRT 两套线路时，自动脚本会建立明确的出口组组合，并保存 `source_station_keys`。组合的全部出口同区才赋值，不任意选择 MRT 或 LRT 那一组。
 - 全网内部 `node` 编号或 GIS 行号不一定是 LTA OD 代码，不能未经验证就用于连接。
 - 公交代码统一为五位字符，如 `1012 → 01012`；非数字或超过五位的代码报错，原始数据不改写。
 

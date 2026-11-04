@@ -13,6 +13,10 @@ normalise_node_code <- function(x, mode) {
   x <- toupper(trimws(as.character(x)))
   x[x == ""] <- NA_character_
   if (mode == "train") {
+    # Historic OD files also use hyphens between full line/station codes.
+    # Only recognise a complete code-list pattern; preserve other text for audit.
+    hyphen_codes <- !is.na(x) & grepl("^[A-Z]+[0-9]*(-[A-Z]+[0-9]*)+$", x)
+    x[hyphen_codes] <- gsub("-", "/", x[hyphen_codes], fixed = TRUE)
     x <- vapply(strsplit(x, "/", fixed = TRUE), function(z) {
       if (anyNA(z) || !length(z)) return(NA_character_)
       paste(sort(unique(trimws(z))), collapse = "/")
@@ -131,17 +135,39 @@ build_lookup <- function(points, id, zones, mode) {
   list(lookup = do.call(rbind, rows), point_matches = detail, duplicates = duplicate_rows)
 }
 
+append_station_groups <- function(stations, crosswalk) {
+  if (!"source_station_keys" %in% names(crosswalk)) return(stations)
+  for (i in seq_len(nrow(crosswalk))) {
+    key <- crosswalk$station_key[i]
+    if (key %in% stations$node_id) next
+    keys <- normalise_station_key(strsplit(crosswalk$source_station_keys[i], ";", fixed = TRUE)[[1]])
+    ix <- match(keys, stations$node_id)
+    if (length(keys) < 2L || anyNA(ix)) stop("Invalid composite station exit groups: ", key)
+    d <- stations[ix, , drop = FALSE]
+    candidates <- unique(unlist(strsplit(d$candidate_subzones, ";", fixed = TRUE)))
+    candidates <- candidates[!is.na(candidates) & candidates != ""]
+    ready <- all(d$match_status == "matched") && length(unique(d$subzone_code)) == 1L
+    stations <- rbind(stations, data.frame(node_id = key,
+      subzone_code = if (ready) d$subzone_code[1] else NA_character_,
+      match_status = if (ready) "matched" else "multiple_exit_groups_unresolved",
+      n_points = sum(d$n_points), n_candidate_subzones = length(candidates),
+      candidate_subzones = paste(sort(candidates), collapse = ";")))
+  }
+  stations
+}
+
 align_stations <- function(stations, crosswalk) {
   require_columns(crosswalk, c("station_key", "station_code"), "station crosswalk")
   crosswalk$station_key <- normalise_station_key(crosswalk$station_key)
   crosswalk$station_code <- normalise_node_code(crosswalk$station_code, "train")
   if (anyNA(crosswalk$station_key) || anyNA(crosswalk$station_code)) stop("Blank crosswalk keys/codes")
-  crosswalk <- unique(crosswalk[c("station_key", "station_code")])
+  crosswalk <- unique(crosswalk[c("station_key", "station_code", intersect("source_station_keys", names(crosswalk)))])
   if (anyDuplicated(crosswalk$station_code)) stop("A station code maps to multiple station keys")
   idx <- match(crosswalk$station_key, stations$node_id)
   out <- stations[idx, , drop = FALSE]
   out$station_key <- crosswalk$station_key
   out$station_code <- crosswalk$station_code
+  if ("source_station_keys" %in% names(crosswalk)) out$source_station_keys <- crosswalk$source_station_keys
   out$node_id <- NULL
   out$match_status[is.na(idx)] <- "station_key_not_found"
   rownames(out) <- NULL
@@ -226,7 +252,7 @@ run_spatial_join <- function(config) {
   crosswalk_available <- !is.null(config$crosswalk) && file.exists(config$crosswalk)
   crosswalk <- if (crosswalk_available) read_text_csv(config$crosswalk) else
     data.frame(station_key = character(), station_code = character())
-  mrt <- align_stations(mr$lookup, crosswalk)
+  mrt <- align_stations(append_station_groups(mr$lookup, crosswalk), crosswalk)
   bus <- bu$lookup
   names(bus)[names(bus) == "node_id"] <- "bus_stop_code"
   overrides <- if (!is.null(config$overrides)) read_text_csv(config$overrides) else data.frame()
