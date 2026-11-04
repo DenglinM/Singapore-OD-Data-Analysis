@@ -18,9 +18,12 @@ library(RColorBrewer)
 library(kableExtra)
 library(here)
 library(arrow) # fast CSV reading and lazy queries on large Parquet data
+library(tmap)
 
 source(here("R", "od_io.R"))
 ```
+
+# import csv file
 
 ```{r build-od-parquet}
 # The raw OD CSVs are far larger than memory (bus: ~18 GB in total), so we do
@@ -50,3 +53,30 @@ head(od_bus_2020)
 ```
 
 
+# define core stop area
+
+```{r}
+read_sf(here('data', 'raw', 'spatial', 'MasterPlan2019SubzoneBoundaryNoSeaGEOJSON.geojson')) -> m_subzone
+
+read_sf(here('data', 'raw', 'spatial', 'LTABusStop.geojson')) -> m_busstop
+```
+
+```{r}
+area_center <- c("PHILLIP", "RAFFLES PLACE", "BAYFRONT SUBZONE", "NICOLL", "ANSON", "TANJONG PAGAR", "MAXWELL", "CECIL", "CENTRAL SUBZONE", "BUGIS", "MARINA CENTRE", "CITY HALL")
+
+area_jurong <- c("JURONG GATEWAY", "INTERNATIONAL BUSINESS PARK", "LAKESIDE (LEISURE)", "LAKESIDE (BUSINESS)" )
+
+area_woodlands <- c("NORTH COAST", "WOODLANDS REGIONAL CENTRE")
+
+area_tampines <- c("TAMPINES NORTH", "TAMPINES WEST", "TAMPINES EAST")
+```
+
+```{r}
+m_subzone %>%
+  filter(SUBZONE_N %in% area_center)
+```
+
+
+
+
+# define share of becoming a subzone
