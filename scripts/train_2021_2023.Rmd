@@ -90,5 +90,4 @@ od_train_21_23 <- od |>
     )
   )
 
-count(od_train_21_23, YEAR, MONTH)
 ```
