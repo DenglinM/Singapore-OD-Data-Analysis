@@ -1,0 +1,73 @@
+---
+title: "train_2021_2023"
+author: "Fuhan ZHAO"
+date: "2026-11-01"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(tidyverse) # also attaches ggplot2, dplyr, readr, etc.
+library(scales)
+library(patchwork)
+library(sf)
+library(RColorBrewer)
+library(kableExtra)
+library(here)
+library(arrow) # fast CSV reading and lazy queries on large Parquet data
+
+source(here("R", "od_io.R"))
+```
+
+```{r build-od-parquet}
+# The raw OD CSVs are far larger than memory (bus: ~18 GB in total), so we do
+# not load them all at once. Instead, every monthly CSV in data/raw/OD/ is
+# converted once into a Parquet dataset in data/processed/od_parquet/
+# (about 8x smaller on disk). Months already converted are skipped, so this
+# chunk is slow only the first time and after new months are downloaded.
+build_od_parquet()
+
+od <- open_od() # lazy: nothing is read into memory yet
+od
+```
+
+```{r load-od-2021}
+# Filter first, then collect() only the rows you need. MODE is "train" or
+# "bus"; YYYYMM is an integer such as 202001. Bus stop codes stay as text, so
+# leading zeros (e.g. "01012") are kept for joining with spatial data.
+dfT21 <- c(202103, 202106, 202109, 202112)
+
+od_train_2021 <- od |>
+  filter(MODE == "train", YYYYMM %in% dfT21) |>
+  collect()
+```
+
+```{r load-od-2022}
+# Filter first, then collect() only the rows you need. MODE is "train" or
+# "bus"; YYYYMM is an integer such as 202001. Bus stop codes stay as text, so
+# leading zeros (e.g. "01012") are kept for joining with spatial data.
+dfT22 <- c(202203, 202206, 202209, 202212)
+
+od_train_2022 <- od |>
+  filter(MODE == "train", YYYYMM %in% dfT22) |>
+  collect()
+```
+
+```{r load-od-2023}
+# Filter first, then collect() only the rows you need. MODE is "train" or
+# "bus"; YYYYMM is an integer such as 202001. Bus stop codes stay as text, so
+# leading zeros (e.g. "01012") are kept for joining with spatial data.
+dfT23 <- c(202303, 202306, 202309, 202312)
+
+od_train_2023 <- od |>
+  filter(MODE == "train", YYYYMM %in% dfT23) |>
+  collect()
+```
+
+```{r}
+head(od_train_2021)
+head(od_train_2022)
+head(od_train_2023)
+```
