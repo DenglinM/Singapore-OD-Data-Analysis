@@ -71,3 +71,23 @@ head(od_train_2021)
 head(od_train_2022)
 head(od_train_2023)
 ```
+
+```{r}
+months_sel <- c(dfT21, dfT22, dfT23)
+
+od_train <- od |>
+  filter(MODE == "train", YYYYMM %in% months_sel) |>
+  collect() |>
+  mutate(
+    YEAR  = YYYYMM %/% 100L,
+    MONTH = YYYYMM %% 100L,
+    period = case_when(
+      DAY_TYPE == "WEEKDAY" & TIME_PER_HOUR %in% c(6, 7, 8, 9) ~ "AM peak",
+      DAY_TYPE == "WEEKDAY" & TIME_PER_HOUR %in% c(17, 18, 19) ~ "PM peak",
+      DAY_TYPE == "WEEKDAY"                                     ~ "Weekday off-peak",
+      TRUE                                                      ~ "Weekend/holiday"
+    )
+  )
+
+count(od_train, YEAR, MONTH)
+```
