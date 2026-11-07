@@ -18,6 +18,9 @@ Files in `data/raw/` and `data/processed/` are **not committed to GitHub** (see 
 | Passenger Volume by Train Stations (tap-in / tap-out) | LTA DataMall | `data/raw/station_volume/transport_node_train_YYYYMM.csv` | As above |
 | MRT station locations / exits | LTA DataMall (Static Datasets → Train Station Exit Point, etc.) | `data/raw/spatial/` | CRS is SVY21 (EPSG:3414) |
 | Land use (Master Plan Land Use) | data.gov.sg / URA Master Plan | `data/raw/spatial/` | |
+| Bus stop locations | LTA DataMall, Static Datasets → Bus Stop Location (zip of `BusStop.shp`) | `data/raw/spatial/BusStopLocation_YYYYMM/BusStop.shp` | SVY21; used by `R/urban_centres.R` |
+| Master Plan 2019 Subzone Boundary (No Sea) | data.gov.sg, URA, dataset `d_8594ae9ff96d0c708bc2af633048edfb` (GeoJSON) | `data/raw/spatial/MasterPlan2019SubzoneBoundaryNoSeaGEOJSON.geojson` | WGS84; attributes sit in the `Description` HTML, parsed by `R/urban_centres.R` |
+| LTA MRT Station Exit | data.gov.sg, LTA, "LTA MRT Station Exit (GEOJSON)" | `data/raw/spatial/LTAMRTStationExitGEOJSON.geojson` | Used to place each urban centre's anchor station |
 
 > When you add a new dataset, add a row to this table and mention it in your PR description.
 
