@@ -17,6 +17,8 @@ library(RColorBrewer)
 library(kableExtra)
 library(here)
 library(arrow) # fast CSV reading and lazy queries on large Parquet data
+library(here)
+library(tmap)
 
 source(here("R", "od_io.R"))
 ```
@@ -90,4 +92,132 @@ od_train_21_23 <- od |>
     )
   )
 
+od_train_21_23 <- od_train_21_23 %>%
+  group_by(YEAR, MONTH, period, ORIGIN_PT_CODE, DESTINATION_PT_CODE) %>%
+  summarise(trips = sum(TOTAL_TRIPS), .groups = "drop")
+
+od_train_21_23 %>% count(YEAR, MONTH, period)
+```
+
+```{r read spatial data}
+read_sf(
+  here('data', 'raw', 'spatial', 'MasterPlan2019SubzoneBoundaryNoSeaGEOJSON.geojson')
+  ) -> m_subzone
+
+read_sf(
+  here('data', 'raw', 'spatial', 'LTAMRTStationExitGEOJSON.geojson')
+  ) -> m_exit
+
+read_csv(
+  here('data', 'raw', 'train_station_codes_2026.csv')
+  ) -> station_lookup
+```
+
+```{r lookup station code}
+station_lookup <- station_lookup %>%
+  transmute(
+    stn_code = str_to_upper(str_squish(stn_code)),
+    station_name = str_to_upper(str_squish(mrt_station_english))
+  ) %>%
+  distinct(stn_code, .keep_all = TRUE)
+```
+
+```{r relate code to station name}
+tibble(pt_code = unique(c(od_train_21_23$ORIGIN_PT_CODE,
+                          od_train_21_23$DESTINATION_PT_CODE))) %>%
+  mutate(code1 = str_split_i(pt_code, "[/-]", 1),    # "EW24/NS1" as "EW24"
+         code2 = str_split_i(pt_code, "[/-]", 2)) %>%  # singal code as NA
+  left_join(station_lookup %>% rename(name1 = station_name),
+            by = c("code1" = "stn_code")) %>%
+  left_join(station_lookup %>% rename(name2 = station_name),
+            by = c("code2" = "stn_code"), na_matches = "never") %>%
+  mutate(station_name = coalesce(name1, name2)) %>%   #recheck
+  select(pt_code, station_name) -> code_lookup
+
+code_lookup %>% filter(is.na(station_name))
+```
+
+```{r load area center}
+area_center <- c("PHILLIP", "RAFFLES PLACE", "BAYFRONT SUBZONE", "NICOLL", "ANSON", "TANJONG PAGAR", "MAXWELL", "CECIL", "CENTRAL SUBZONE", "BUGIS", "MARINA CENTRE", "CITY HALL")
+
+area_jurong <- c("JURONG GATEWAY", "INTERNATIONAL BUSINESS PARK", "LAKESIDE (LEISURE)", "LAKESIDE (BUSINESS)" )
+
+area_woodlands <- c("NORTH COAST", "WOODLANDS REGIONAL CENTRE")
+
+area_tampines <- c("TAMPINES NORTH", "TAMPINES WEST", "TAMPINES EAST")
+
+m_subzone %>%
+  filter(SUBZONE_N %in% area_center)
+```
+
+```{r station to subzone}
+m_exit %>%
+  st_transform(3414) %>%
+  mutate(station_name = str_to_upper(str_squish(STATION_NA)),
+         station_name = str_remove(station_name, " (MRT|LRT) STATION$")) %>%
+  group_by(station_name) %>%
+  summarise(geometry = st_union(geometry), .groups = "drop") %>%
+  st_centroid() -> m_station
+
+setdiff(code_lookup$station_name, m_station$station_name)
+
+m_station %>%
+  st_join(m_subzone %>% st_transform(3414) %>% select(SUBZONE_N),
+          join = st_within) %>%
+  st_drop_geometry() -> station_sz
+
+code_lookup %>%
+  left_join(station_sz, by = "station_name") %>%
+  select(pt_code, station_name, SUBZONE_N) -> code_sz
+
+code_sz %>% filter(is.na(SUBZONE_N))
+```
+
+```{r define 4 centers}
+code_sz <- code_sz %>%
+  mutate(centre = case_when(
+    SUBZONE_N %in% area_center    ~ "CBD",
+    SUBZONE_N %in% area_jurong    ~ "Jurong Lake District",
+    SUBZONE_N %in% area_woodlands ~ "Woodlands",
+    SUBZONE_N %in% area_tampines  ~ "Tampines",
+    TRUE                          ~ "Other"
+  ))
+
+code_sz %>%
+  filter(centre != "Other") %>%
+  arrange(centre, station_name) %>%
+  select(centre, station_name, SUBZONE_N)
+```
+
+```{r}
+od_train_21_23 <- od_train_21_23 %>%
+  left_join(code_sz %>% select(pt_code, origin_stn = station_name,
+                               origin_sz = SUBZONE_N, origin_centre = centre),
+            by = c("ORIGIN_PT_CODE" = "pt_code")) %>%
+  left_join(code_sz %>% select(pt_code, dest_stn = station_name,
+                               dest_sz = SUBZONE_N, dest_centre = centre),
+            by = c("DESTINATION_PT_CODE" = "pt_code"))
+
+sum(is.na(od_train_21_23$origin_centre))
+sum(is.na(od_train_21_23$dest_centre))
+```
+```{r}
+# Table 1: centre-to-centre flow matrix (including "Other")
+# Shows where each centre's trips come from and go to, and how strongly
+# each centre is linked to the CBD
+od_train_21_23 %>%
+  group_by(YEAR, MONTH, period, origin_centre, dest_centre) %>%
+  summarise(trips = sum(trips), .groups = "drop") -> od_centre
+
+# Table 2: flows from every station to each of the four centres
+# Used for mapping each centre's catchment (which stations send trips to it)
+od_train_21_23 %>%
+  filter(dest_centre != "Other") %>%
+  group_by(YEAR, MONTH, period, dest_centre, origin_stn, origin_sz) %>%
+  summarise(trips = sum(trips), .groups = "drop") -> od_station_to_centre
+
+# Check: flows between centres, March 2023, AM peak
+od_centre %>%
+  filter(YEAR == 2023, MONTH == 3, period == "AM peak") %>%
+  pivot_wider(names_from = dest_centre, values_from = trips)
 ```
