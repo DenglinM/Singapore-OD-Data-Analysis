@@ -201,6 +201,7 @@ od_train_21_23 <- od_train_21_23 %>%
 sum(is.na(od_train_21_23$origin_centre))
 sum(is.na(od_train_21_23$dest_centre))
 ```
+
 ```{r}
 # Table 1: centre-to-centre flow matrix (including "Other")
 # Shows where each centre's trips come from and go to, and how strongly
@@ -220,4 +221,57 @@ od_train_21_23 %>%
 od_centre %>%
   filter(YEAR == 2023, MONTH == 3, period == "AM peak") %>%
   pivot_wider(names_from = dest_centre, values_from = trips)
+```
+
+```{r three indicators}
+centres <- c("CBD", "Jurong Lake District", "Woodlands", "Tampines")
+
+# For each centre, sum inflow, outflow, internal trips and trips to the CBD
+map(centres, function(cc) {
+  od_centre %>%
+    group_by(YEAR, MONTH, period) %>%
+    summarise(
+      centre   = cc,
+      inflow   = sum(trips[dest_centre == cc & origin_centre != cc]),
+      outflow  = sum(trips[origin_centre == cc & dest_centre != cc]),
+      internal = sum(trips[origin_centre == cc & dest_centre == cc]),
+      to_cbd   = sum(trips[origin_centre == cc & dest_centre == "CBD"]),
+      total    = sum(trips),   # all trips island-wide
+      .groups = "drop"
+    )
+}) %>%
+  list_rbind() %>%
+  mutate(
+    attraction        = inflow / total,
+    cbd_outflow_share = if_else(centre == "CBD", NA_real_, to_cbd / outflow),
+    in_out_ratio      = inflow / outflow
+  ) -> indicators
+```
+
+```{r trip distance}
+# Station coordinates (EPSG:3414, metres)
+m_station %>%
+  mutate(x = st_coordinates(.)[, 1],
+         y = st_coordinates(.)[, 2]) %>%
+  st_drop_geometry() %>%
+  select(station_name, x, y) -> stn_xy
+
+# Average straight-line distance of trips entering each centre from outside
+od_train_21_23 %>%
+  filter(dest_centre != "Other", origin_centre != dest_centre) %>%
+  left_join(stn_xy %>% rename(ox = x, oy = y), by = c("origin_stn" = "station_name")) %>%
+  left_join(stn_xy %>% rename(dx = x, dy = y), by = c("dest_stn" = "station_name")) %>%
+  mutate(dist_km = sqrt((ox - dx)^2 + (oy - dy)^2) / 1000) %>%
+  group_by(YEAR, MONTH, period, centre = dest_centre) %>%
+  summarise(mean_dist_km = weighted.mean(dist_km, trips, na.rm = TRUE),
+            .groups = "drop") -> trip_distance
+
+# Add distance to the indicator table
+indicators <- indicators %>%
+  left_join(trip_distance, by = c("YEAR", "MONTH", "period", "centre"))
+
+# Check: AM peak, March 2023
+indicators %>%
+  filter(YEAR == 2023, MONTH == 3, period == "AM peak") %>%
+  select(centre, inflow, outflow, attraction, cbd_outflow_share, in_out_ratio, mean_dist_km)
 ```
