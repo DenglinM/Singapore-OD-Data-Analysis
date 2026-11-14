@@ -132,7 +132,28 @@ od_bus_2026 <- od_bus_2026 %>%
   )
 ```
 
+```{r}
+am_peak <- c(6,7,8,9)
+pm_peak <- c(17,18,19,20)
 
+dict_hub_stop <- bind_rows(
+  busStops_center %>% mutate(zone = "CBD"),
+  busStops_tampines %>% mutate(zone = "Tampines"),
+  busStops_jurong %>% mutate(zone = "Jurong East"),
+  busStops_woodlands %>% mutate(zone = "Woodlands")
+) %>% 
+  select(BUS_STOP_NUM, zone)
+
+od_bus_after23 <- bind_rows(od_bus_2023, od_bus_2024,od_bus_2025, od_bus_2026)
+rm(od_bus_2023, od_bus_2024, od_bus_2025, od_bus_2026)
+```
+
+
+```{r}
+dest_flows_am <- od_bus_after23 %>% 
+  filter(DAY_TYPE == "WEEKDAY", TIME_PER_HOUR %in% am_peak) %>% 
+  inner_join(dict_hub_stop, by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM"))
+```
 
 
 
