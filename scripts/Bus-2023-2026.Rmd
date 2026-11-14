@@ -158,36 +158,31 @@ attraction_monthly_am <- dest_flows_am %>%
     )
 
 total_dest_flows_am <- total_bus_after23 %>% 
-  group_by()
-```
-
-```{r}
-cbd_monthly_am <- attraction_monthly_am %>% 
-  filter(zone == "CBD") %>% 
-  select(-zone)
-
-attraction_share <- attraction_monthly_am %>% 
   group_by(YEAR_MONTH) %>% 
-  mutate(total_core_attraction = sum(total_arrival)) %>% 
-  ungroup() %>% 
-  mutate(
-    share_percentage = total_arrival / total_core_attraction
-  )
+  filter(DAY_TYPE == "WEEKDAY", TIME_PER_HOUR %in% am_peak) %>% 
+  summarise(
+    total_island_trips = sum(TOTAL_TRIPS),
+    .groups = "drop"
+    )
+
+bus_share_am <- attraction_monthly_am %>% 
+  left_join(total_dest_flows_am, by = "YEAR_MONTH") %>% 
+  mutate(am_share = total_arrival / total_island_trips) %>% 
+  arrange(YEAR_MONTH, zone)
 ```
 
-```{r}
-station_counts <- dict_hub_stop %>%
-  group_by(zone) %>%
-  summarise(stations = n())
-
-normalized_attraction <- attraction_monthly_am %>%
-  left_join(station_counts, by = "zone") %>%
-  mutate(
-    trips_per_station = total_arrival / stations
-  )
-```
 
 ```{r}
-head(total_bus_after23)
+ggplot(bus_share_am, aes(x = YEAR_MONTH, y = am_share, color = zone, group = zone)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 2.5) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
+  labs(
+    title = "AM Peak Bus Attraction Share (Island-wide)",
+    subtitle = "Percentage of all island-wide morning bus trips",
+    x = "Month",
+    y = "Share (%)"
+  ) +
+  theme_minimal()
 ```
 
