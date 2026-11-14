@@ -319,6 +319,7 @@ stylized_line <- function(x, y, z = NULL, data = NULL,
     labs(x = x_lab %||% rlang::as_label(qx), y = y_lab %||% rlang::as_label(qy),
          title = title, subtitle = subtitle, caption = caption) +
     line_chart_theme
+
 }
 
 
