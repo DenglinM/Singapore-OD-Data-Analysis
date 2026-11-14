@@ -61,7 +61,21 @@ od_bus_2026 <- od %>%
 ```
 
 ```{r}
-head(od_bus_2023)
+od_mrt_2023 <- od %>% 
+  filter(MODE == "train", YYYYMM %in% dfB23) %>% 
+  collect()
+
+od_mrt_2024 <- od %>% 
+  filter(MODE == "train", YYYYMM %in% dfB24) %>% 
+  collect()
+
+od_mrt_2025 <- od %>% 
+  filter(MODE == "train", YYYYMM %in% dfB25) %>% 
+  collect()
+
+od_mrt_2026 <- od %>% 
+  filter(MODE == "train", YYYYMM %in% dfB26) %>% 
+  collect()
 ```
 
 ```{r}
@@ -153,8 +167,42 @@ rm(od_bus_2023, od_bus_2024, od_bus_2025, od_bus_2026)
 dest_flows_am <- od_bus_after23 %>% 
   filter(DAY_TYPE == "WEEKDAY", TIME_PER_HOUR %in% am_peak) %>% 
   inner_join(dict_hub_stop, by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM"))
+
+dest_flows_pm <- od_bus_after23 %>% 
+  filter(DAY_TYPE == "WEEKDAY", TIME_PER_HOUR %in% pm_peak) %>% 
+  inner_join(dict_hub_stop, by = c("ORIGIN_PT_CODE" = "BUS_STOP_NUM"))
+
+dest_flows_we <- od_bus_after23 %>% 
+  filter(DAY_TYPE == "WEEKENDS/HOLIDAY") %>% 
+  inner_join(dict_hub_stop, by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM"))
+
+attraction_montly_am <- dest_flows_am %>% 
+  group_by(YEAR_MONTH, zone) %>% 
+  summarise(
+    total_arrival = sum(TOTAL_TRIPS),
+    .groups = "drop"
+    )
+
+attraction_montly_pm <- dest_flows_pm %>% 
+  group_by(YEAR_MONTH, zone) %>% 
+  summarise(
+    total_depart = sum(TOTAL_TRIPS),
+    .groups = "drop"
+    )
+
+attraction_montly_we <- dest_flows_we %>% 
+  group_by(YEAR_MONTH, zone) %>% 
+  summarise(
+    total_arrival = sum(TOTAL_TRIPS),
+    .groups = "drop"
+    )
 ```
 
+```{r}
+cbd_monthly_am <- attraction_montly_am %>% 
+  filter(zone == "CBD") %>% 
+  select(-zone)
+```
 
 
 
