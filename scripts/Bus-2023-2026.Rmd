@@ -138,7 +138,7 @@ dict_hub_stop <- bind_rows(
   busStops_tampines %>% mutate(zone = "Tampines"),
   busStops_jurong %>% mutate(zone = "Jurong East"),
   busStops_woodlands %>% mutate(zone = "Woodlands")
-) %>% 
+    ) %>% 
   select(BUS_STOP_NUM, zone)
 
 hubs_bus_after23 <- bind_rows(od_bus_2023, od_bus_2024,od_bus_2025, od_bus_2026)
@@ -171,18 +171,60 @@ bus_share_am <- attraction_monthly_am %>%
   arrange(YEAR_MONTH, zone)
 ```
 
+```{r}
+cbd_outflow_share <- total_bus_after23 %>% 
+  filter(DAY_TYPE == "WEEKDAY", TIME_PER_HOUR %in% am_peak) %>% 
+  inner_join(dict_hub_stop, by = c("ORIGIN_PT_CODE" = "BUS_STOP_NUM")) %>% 
+  rename(original_zone = zone) %>% 
+  filter(original_zone %in% c("Jurong East", "Tampines", "Woodlands", "CBD")) %>% 
+  group_by(YEAR_MONTH, original_zone) %>% 
+  summarise(
+    total_departure = sum(TOTAL_TRIPS),
+    trips_to_cbd = sum(TOTAL_TRIPS[DESTINATION_PT_CODE %in% busStops_center$BUS_STOP_NUM]),
+    .groups = "drop"
+   ) %>% 
+  mutate(
+    cbd_share_pct = trips_to_cbd / total_departure * 100
+   )
+```
 
 ```{r}
-ggplot(bus_share_am, aes(x = YEAR_MONTH, y = am_share, color = zone, group = zone)) +
-  geom_line(linewidth = 1.2) +
-  geom_point(size = 2.5) +
-  scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
-  labs(
-    title = "AM Peak Bus Attraction Share (Island-wide)",
-    subtitle = "Percentage of all island-wide morning bus trips",
-    x = "Month",
-    y = "Share (%)"
-  ) +
-  theme_minimal()
+arrivals_after23 <- attraction_monthly_am %>%
+  select(YEAR_MONTH, zone, total_arrival)
+
+departures_after23 <- cbd_outflow_share %>%
+  select(YEAR_MONTH, original_zone, total_departure) %>%
+  rename(zone = original_zone)
+
+in_out_ratio_after23 <- arrivals_after23 %>% 
+  left_join(departures_after23, by = c("YEAR_MONTH", "zone")) %>% 
+  mutate(in_out_ratio = total_arrival / total_departure)
 ```
+
+```{r}
+trip_distance_summary <- total_bus_after23 %>%
+  filter(DAY_TYPE == "WEEKDAY", TIME_PER_HOUR %in% am_peak) %>%
+  inner_join(dict_hub_stop, by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM")) %>%
+  rename(dest_zone = zone) %>%
+  filter(dest_zone %in% c("Jurong East", "Tampines", "Woodlands", "CBD")) %>%
+  left_join(
+    busStops %>% select(BUS_STOP_NUM, geometry_orig = geometry),
+    by = c("ORIGIN_PT_CODE" = "BUS_STOP_NUM")
+  ) %>%
+  left_join(
+    busStops %>% select(BUS_STOP_NUM, geometry_dest = geometry),
+    by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM")  
+  ) %>% 
+  mutate(
+    distance_km = as.numeric(st_distance(geometry_orig, geometry_dest, by_element = TRUE)) / 1000
+  ) %>% 
+  filter(!is.na(distance_km)) %>% 
+  group_by(YEAR_MONTH, dest_zone) %>% 
+  summarise(
+    total_arrival = sum(TOTAL_TRIPS),
+    weighted_avg_dist_km = sum(distance_km * TOTAL_TRIPS) / total_arrival,
+    .groups = "drop"
+  )
+```
+
 
