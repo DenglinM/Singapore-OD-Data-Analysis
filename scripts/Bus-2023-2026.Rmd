@@ -58,24 +58,8 @@ od_bus_2025 <- od %>%
 od_bus_2026 <- od %>% 
   filter(MODE == "bus", YYYYMM %in% dfB26) %>% 
   collect()
-```
 
-```{r}
-od_mrt_2023 <- od %>% 
-  filter(MODE == "train", YYYYMM %in% dfB23) %>% 
-  collect()
-
-od_mrt_2024 <- od %>% 
-  filter(MODE == "train", YYYYMM %in% dfB24) %>% 
-  collect()
-
-od_mrt_2025 <- od %>% 
-  filter(MODE == "train", YYYYMM %in% dfB25) %>% 
-  collect()
-
-od_mrt_2026 <- od %>% 
-  filter(MODE == "train", YYYYMM %in% dfB26) %>% 
-  collect()
+total_bus_after23 <- bind_rows(od_bus_2023, od_bus_2024, od_bus_2025, od_bus_2026)
 ```
 
 ```{r}
@@ -92,7 +76,6 @@ area_jurong <- c("JURONG GATEWAY", "INTERNATIONAL BUSINESS PARK", "LAKESIDE (LEI
 area_woodlands <- c("NORTH COAST", "WOODLANDS REGIONAL CENTRE")
 area_tampines <- c("TAMPINES NORTH", "TAMPINES WEST", "TAMPINES EAST")
 ```
-
 
 ```{r}
 busStops_center <- busStops %>%
@@ -158,52 +141,53 @@ dict_hub_stop <- bind_rows(
 ) %>% 
   select(BUS_STOP_NUM, zone)
 
-od_bus_after23 <- bind_rows(od_bus_2023, od_bus_2024,od_bus_2025, od_bus_2026)
+hubs_bus_after23 <- bind_rows(od_bus_2023, od_bus_2024,od_bus_2025, od_bus_2026)
 rm(od_bus_2023, od_bus_2024, od_bus_2025, od_bus_2026)
 ```
 
-
 ```{r}
-dest_flows_am <- od_bus_after23 %>% 
+dest_flows_am <- hubs_bus_after23 %>% 
   filter(DAY_TYPE == "WEEKDAY", TIME_PER_HOUR %in% am_peak) %>% 
   inner_join(dict_hub_stop, by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM"))
 
-dest_flows_pm <- od_bus_after23 %>% 
-  filter(DAY_TYPE == "WEEKDAY", TIME_PER_HOUR %in% pm_peak) %>% 
-  inner_join(dict_hub_stop, by = c("ORIGIN_PT_CODE" = "BUS_STOP_NUM"))
-
-dest_flows_we <- od_bus_after23 %>% 
-  filter(DAY_TYPE == "WEEKENDS/HOLIDAY") %>% 
-  inner_join(dict_hub_stop, by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM"))
-
-attraction_montly_am <- dest_flows_am %>% 
+attraction_monthly_am <- dest_flows_am %>% 
   group_by(YEAR_MONTH, zone) %>% 
   summarise(
     total_arrival = sum(TOTAL_TRIPS),
     .groups = "drop"
     )
 
-attraction_montly_pm <- dest_flows_pm %>% 
-  group_by(YEAR_MONTH, zone) %>% 
-  summarise(
-    total_depart = sum(TOTAL_TRIPS),
-    .groups = "drop"
-    )
-
-attraction_montly_we <- dest_flows_we %>% 
-  group_by(YEAR_MONTH, zone) %>% 
-  summarise(
-    total_arrival = sum(TOTAL_TRIPS),
-    .groups = "drop"
-    )
+total_dest_flows_am <- total_bus_after23 %>% 
+  group_by()
 ```
 
 ```{r}
-cbd_monthly_am <- attraction_montly_am %>% 
+cbd_monthly_am <- attraction_monthly_am %>% 
   filter(zone == "CBD") %>% 
   select(-zone)
+
+attraction_share <- attraction_monthly_am %>% 
+  group_by(YEAR_MONTH) %>% 
+  mutate(total_core_attraction = sum(total_arrival)) %>% 
+  ungroup() %>% 
+  mutate(
+    share_percentage = total_arrival / total_core_attraction
+  )
 ```
 
+```{r}
+station_counts <- dict_hub_stop %>%
+  group_by(zone) %>%
+  summarise(stations = n())
 
+normalized_attraction <- attraction_monthly_am %>%
+  left_join(station_counts, by = "zone") %>%
+  mutate(
+    trips_per_station = total_arrival / stations
+  )
+```
 
+```{r}
+head(total_bus_after23)
+```
 
