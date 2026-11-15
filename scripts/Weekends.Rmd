@@ -27,9 +27,9 @@ sf_use_s2(FALSE)
 ```{r}
 subzone <- read_sf(here("data", "raw", "MasterPlan2019SubzoneBoundaryNoSeaGEOJSON.geojson"))
 
-land_use_raw <- st_read(here("data", "raw", "AmendmenttoMasterPlan2019LandUselayer.geojson"))
+land_use_raw <- st_read(here("data", "raw", "spatial", "AmendmenttoMasterPlan2019LandUselayer.geojson"))
 
-pbf_file <- here("data", "raw", "malaysia-singapore-brunei-261113.osm.pbf")
+pbf_file <- here("data", "raw", "spatial", "malaysia-singapore-brunei-261113.osm.pbf")
 
 area_center <- c("PHILLIP", "RAFFLES PLACE", "BAYFRONT SUBZONE", "NICOLL", "ANSON", "TANJONG PAGAR", "MAXWELL", "CECIL", "CENTRAL SUBZONE", "BUGIS", "MARINA CENTRE", "CITY HALL")
 area_jurong <- c("JURONG GATEWAY", "INTERNATIONAL BUSINESS PARK", "LAKESIDE (LEISURE)", "LAKESIDE (BUSINESS)" )
@@ -658,6 +658,12 @@ p_weekend_composite <- (
   )
 
 p_weekend_composite
+```
+
+```{r save-report-outputs}
+# Save the composite figure for the report (docs/report/report.Rmd embeds it)
+source(here("R", "save_fig.R"))
+save_fig(p_weekend_composite, "weekend_composite", width = 15, height = 10)
 ```
 
 ```{r final-cleanup, include=FALSE}

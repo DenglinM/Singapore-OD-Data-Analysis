@@ -1,0 +1,295 @@
+---
+title: "Have Singapore's Regional Centres Reduced Reliance on the CBD? Evidence from MRT and Bus Origin-Destination Data"
+author: "[Member 1], [Member 2], [Member 3], [Member 4], [Member 5]"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  word_document:
+    toc: false
+    fig_caption: true
+  html_document:
+    toc: true
+    number_sections: true
+    fig_caption: true
+---
+
+<!--
+=============================================================================
+HOW THIS REPORT IS BUILT
+- This file does NO analysis. It only embeds the figures (outputs/figures/*.png)
+  and small tables (outputs/tables/*.rds) saved by the analysis Rmds:
+    scripts/study_area_map.Rmd        -> study_area_map.png
+    scripts/Train_all.Rmd             -> shed_<phase>_<period>.png,
+                                         overlap_<period>.png,
+                                         mrt_indicator_means.rds
+    scripts/Bus_SDand_After SD.Rmd    -> bus_shed_<phase>_am_peak.png,
+                                         bus_overlap_am_peak.png,
+                                         bus_indicator_means.rds
+    scripts/Weekends.Rmd              -> weekend_composite.png
+- Run (knit) those four Rmds first, then knit this file.
+- Submission must be ONE PDF: knit to Word, check layout, then
+  File > Save As > PDF. Limit: 10 pages (put extra maps in the Appendix).
+- A missing file shows "[Missing: ...]" instead of breaking the knit.
+- Text in [square brackets] and the WRITING GUIDE comments are for the
+  group to replace. The brief requires that you write the text yourselves
+  and add an AI-use statement at the end.
+=============================================================================
+-->
+
+```{r setup, include = FALSE}
+# echo/message/warning off: the brief asks for no clutter in the report
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
+                      out.width = "100%", fig.align = "center", dpi = 300)
+library(dplyr)
+source(here::here("R", "save_fig.R"))
+source(here::here("R", "table_theme.R"))   # stylized_table() three-line tables
+```
+
+# Abstract {-}
+
+<!-- WRITING GUIDE (150-200 words): context (decentralisation policy) ->
+question -> data (LTA OD, MRT + bus, 2020-2026; URA land use; OSM POIs) ->
+method (service sheds, overlap, four indicators, SD-control vs non-control)
+-> 2-3 key numbers from the results -> one-sentence conclusion. Write it last. -->
+
+[Abstract]
+
+**Keywords:** origin-destination data; polycentric city; regional centres; service shed; COVID-19; Singapore
+
+# Introduction
+
+<!-- WRITING GUIDE
+- Singapore's Concept Plan / Master Plan decentralisation strategy: regional
+  centres at Jurong East (Jurong Lake District), Tampines and Woodlands, meant
+  to bring jobs closer to homes and reduce long commutes to the CBD.
+- Why it matters: congestion on radial MRT lines, travel time, planning goals.
+- Research question (state it explicitly, e.g. "To what extent do the three
+  regional centres attract and retain trips within their own regions, and how
+  did this change between the safe-distancing (SD) control period and the
+  post-control period?").
+- Contribution: MRT + bus, two COVID phases, linked to land use and amenities.
+- One sentence on the structure of the paper. -->
+
+[Introduction]
+
+# Literature review
+
+<!-- WRITING GUIDE
+- OD / smart-card data for urban structure and polycentricity (state of the art).
+- Studies of Singapore's regional centres and decentralisation.
+- Hou et al. (2025): the service-shed (core / strong / weak / peripheral)
+  and principal-shed overlap method that this study replicates - say clearly
+  what you replicate and what you add (bus mode, newer months, land use, POIs).
+- COVID-19 impacts on travel patterns.
+- Research gap that motivates the question. Cite every paper (see References). -->
+
+[Literature review]
+
+# Data
+
+<!-- WRITING GUIDE: describe each dataset, its period, licence and quality
+issues (the brief checks this). Facts from the scripts are listed below as
+notes; turn them into prose or a table. -->
+
+[Data description]
+
+<!--
+NOTES FROM THE SCRIPTS (delete after writing):
+- LTA DataMall "Passenger volume by origin destination train stations" and
+  "... bus stops": monthly, by day type and hour. Sample months: March, June,
+  September, December. MRT 2021-03 to 2026-09 (Train_all.Rmd); bus 2020-03 to
+  2026-09 (Bus_SDand_After SD.Rmd), weekday 06:00-10:00 for bus.
+- Converted to Parquet (R/od_io.R) because the raw CSVs total ~20 GB; bus stop
+  codes read as text to keep leading zeros.
+- URA Master Plan 2019 Subzone Boundary (No Sea): centre definitions and
+  service-shed units.
+- URA Master Plan 2019 Land Use layer (amended): land-use mix of the centres
+  (additional dataset not listed in the brief).
+- OpenStreetMap points of interest via a Geofabrik extract (osmextract):
+  dining, retail, leisure, daily needs, community, nightlife (additional
+  dataset; ODbL licence).
+- LTA MRT station exits + official station code list: station locations,
+  joined to OD station codes (interchanges such as "EW24/NS1" split).
+- LTA bus stop locations (LTABusStop.geojson).
+- Licences: LTA DataMall and URA data under the Singapore Open Data Licence;
+  OSM under ODbL ("(c) OpenStreetMap contributors").
+-->
+
+```{r fig-study-area, fig.cap = "Figure 1. Study area: the CBD and the three regional centres (Jurong Lake District, Tampines, Woodlands), defined as groups of URA subzones, with MRT lines."}
+show_fig("study_area_map")
+```
+
+# Methods
+
+<!-- WRITING GUIDE: explain each step so it can be reproduced. Notes on what
+the code does are listed below. -->
+
+[Methods]
+
+<!--
+NOTES FROM THE SCRIPTS (delete after writing):
+- Centres = sets of subzones (CBD: 12 subzones incl. Raffles Place, Marina
+  Centre...; Jurong: Jurong Gateway, International Business Park, Lakeside x2;
+  Woodlands: North Coast, Woodlands Regional Centre; Tampines: North/West/East).
+- Periods: AM peak 06-09h, PM peak 17-20h (weekday), weekday off-peak,
+  weekend/holiday.
+- COVID phases (after Hou et al. 2025): "SD control" up to 2022-03,
+  "Non-control" after.
+- Indicators per centre: attraction = inflow / island-wide trips;
+  in/out ratio = inflow / outflow; CBD outflow share = trips to CBD / outflow;
+  mean trip distance = trip-weighted straight-line distance of trips entering
+  the centre.
+- Service shed: origin subzones ranked by monthly-average trips into a centre;
+  cumulative share 0-25 % = core, 25-50 % strong, 50-75 % weak, 75-100 %
+  peripheral. Principal shed = core + strong.
+- Overlap O(i, j) = share of centre j's principal-shed subzones that are also
+  in centre i's; diagonal = self-containment (share not shared with any other
+  centre).
+- Land use: Master Plan land-use polygons intersected with the centres,
+  grouped into five categories; POIs counted per km2 of each centre.
+-->
+
+# Results
+
+## Trip indicators
+
+<!-- WRITING GUIDE: describe what the tables show, with numbers. Compare the
+centres and the two phases. -->
+
+```{r tab-mrt}
+mrt <- read_tab("mrt_indicator_means")
+if (is.null(mrt)) {
+  missing_note("outputs/tables/mrt_indicator_means.rds")
+} else {
+  mrt |>
+    filter(period == "AM peak") |>
+    mutate(attraction        = attraction * 100,
+           cbd_outflow_share = cbd_outflow_share * 100) |>
+    stylized_table(
+      cols   = c(Phase = covid_phase, Centre = zone,
+                 `Attraction (%)` = attraction, `In/out ratio` = in_out_ratio,
+                 `CBD outflow (%)` = cbd_outflow_share,
+                 `Mean distance (km)` = mean_dist_km),
+      group  = Phase, digits = 2,
+      title  = "Table 1. MRT/LRT indicators by centre, weekday AM peak (monthly means).",
+      note   = "Source: LTA DataMall passenger volume by OD (train). CBD outflow share is not defined for the CBD.")
+}
+```
+
+[Interpretation of Table 1]
+
+```{r tab-bus}
+bus <- read_tab("bus_indicator_means")
+if (is.null(bus)) {
+  missing_note("outputs/tables/bus_indicator_means.rds")
+} else {
+  bus |>
+    rename(Centre = zone) |>
+    stylized_table(
+      group = Centre, digits = 2,
+      title = "Table 2. Bus indicators by centre, weekday AM peak (monthly means).",
+      note  = "Source: LTA DataMall passenger volume by OD (bus).")
+}
+```
+
+[Interpretation of Table 2]
+
+## Service sheds
+
+```{r fig-mrt-shed-sd, fig.cap = "Figure 2. MRT/LRT service sheds of the four centres, weekday AM peak, SD control period."}
+show_fig("shed_sd_control_am_peak")
+```
+
+```{r fig-mrt-shed-non, fig.cap = "Figure 3. MRT/LRT service sheds of the four centres, weekday AM peak, non-control period."}
+show_fig("shed_non_control_am_peak")
+```
+
+[Interpretation of Figures 2-3: how far each centre's core/strong shed
+reaches, regional vs island-wide catchments, change between phases]
+
+```{r fig-bus-shed-sd, fig.cap = "Figure 4. Bus service sheds of the four centres, weekday AM peak, SD control period."}
+show_fig("bus_shed_sd_control_am_peak")
+```
+
+```{r fig-bus-shed-non, fig.cap = "Figure 5. Bus service sheds of the four centres, weekday AM peak, non-control period."}
+show_fig("bus_shed_non_control_am_peak")
+```
+
+[Interpretation of Figures 4-5, compared with MRT]
+
+## Overlap of principal service sheds
+
+```{r fig-mrt-overlap, fig.cap = "Figure 6. Overlap of MRT/LRT principal service sheds, weekday AM peak: (A) SD control, (B) non-control. Read by column; the diagonal is self-containment.", out.width = "85%"}
+show_fig("overlap_am_peak")
+```
+
+```{r fig-bus-overlap, fig.cap = "Figure 7. Overlap of bus principal service sheds, weekday AM peak: (a) SD control, (b) non-control.", out.width = "85%"}
+show_fig("bus_overlap_am_peak")
+```
+
+[Interpretation of Figures 6-7: do the regional centres draw from their own
+regions (high self-containment) or compete with the CBD for the same subzones?]
+
+## Weekend attractiveness, land use and amenities
+
+```{r fig-weekend, fig.cap = "Figure 8. Weekend functional attractiveness of the regional centres: (a) POI count and (b) POI density by category (OpenStreetMap), (c) land-use composition (URA Master Plan 2019), (d) weekend public transport attraction share, SD control vs non-control."}
+show_fig("weekend_composite")
+```
+
+[Interpretation of Figure 8 and how land use / amenities may explain the
+differences between centres]
+
+# Discussion
+
+<!-- WRITING GUIDE
+- Answer the research question directly, centre by centre.
+- Compare with Hou et al. (2025): what is the same, what differs, why.
+- MRT vs bus: complementary roles?
+- Limitations (the brief rewards honesty): sampled months only; OD gives
+  stops, not true origins/destinations; straight-line distance; subzone-based
+  centre definition; station-code changes and new lines (TEL); tap-in/out data
+  miss walking/cycling and private transport; COVID phase boundary.
+- Policy implications and future work. -->
+
+[Discussion]
+
+# Conclusion
+
+[Conclusion: 1-2 paragraphs, answer to the research question, main evidence,
+one forward-looking sentence]
+
+# References {-}
+
+<!-- Use one citation style consistently (e.g. APA). Include every paper,
+dataset and key R package you used. -->
+
+[Papers, e.g. Hou et al. (2025) - full reference]
+
+Land Transport Authority. (2026). *LTA DataMall: Passenger volume by origin destination bus stops / train stations* [Data set]. Singapore Open Data Licence.
+
+Urban Redevelopment Authority. (2019). *Master Plan 2019 Subzone Boundary (No Sea)* and *Master Plan 2019 Land Use layer* [Data sets]. data.gov.sg, Singapore Open Data Licence.
+
+OpenStreetMap contributors. (2026). *OpenStreetMap data, Malaysia-Singapore-Brunei extract* [Data set]. Geofabrik. Open Database Licence (ODbL).
+
+R Core Team. (2025). *R: A language and environment for statistical computing*. R Foundation for Statistical Computing. Packages: tidyverse, sf, arrow, patchwork, flextable, osmextract, ggspatial, here.
+
+# AI use statement {-}
+
+<!-- Required by the brief: which AI tools you used and for what purpose. Be specific and accurate. -->
+
+[AI use statement]
+
+# Appendix {-}
+
+<!-- Maps for the other periods do not fit in 10 pages. Move or delete as needed. -->
+
+```{r fig-appendix-pm, fig.cap = "Figure A1. MRT/LRT service sheds, weekday PM peak, non-control period."}
+show_fig("shed_non_control_pm_peak")
+```
+
+```{r fig-appendix-weekend, fig.cap = "Figure A2. MRT/LRT service sheds, weekends and holidays, non-control period."}
+show_fig("shed_non_control_weekend")
+```
+
+```{r fig-appendix-overlap-weekend, fig.cap = "Figure A3. Overlap of MRT/LRT principal service sheds, weekends and holidays.", out.width = "85%"}
+show_fig("overlap_weekend")
+```

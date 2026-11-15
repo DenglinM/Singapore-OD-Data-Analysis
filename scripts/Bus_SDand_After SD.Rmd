@@ -1310,6 +1310,18 @@ p_metrics_table <- metrics_table %>%
 p_metrics_table
 ```
 
+```{r save-report-outputs}
+# Save the final figures and the indicator table for the report
+# (docs/report/report.Rmd embeds these files and runs no analysis itself)
+source(here("R", "save_fig.R"))
+
+save_fig(p_service_sheds_sd,  "bus_shed_sd_control_am_peak",  width = 12, height = 9)
+save_fig(p_service_sheds_non, "bus_shed_non_control_am_peak", width = 12, height = 9)
+save_fig(p_overlap_compare,   "bus_overlap_am_peak",          width = 9,  height = 5)
+
+save_tab(metrics_table, "bus_indicator_means")
+```
+
 ```{r}
 rm(list = setdiff(
   ls(all.names = TRUE),

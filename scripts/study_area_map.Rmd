@@ -22,8 +22,8 @@ library(tidyverse)
 library(sf)
 library(here)
 
-source(here("R", "map_theme.R"))     # sg_map(), map style
-source(here("R", "service_shed.R"))  # make_mrt_lines()
+source(here("R", "map_theme.R"))     # sg_map(), make_mrt_lines(), map style
+source(here("R", "save_fig.R"))      # save_fig()
 ```
 
 ```{r data}
@@ -32,10 +32,25 @@ m_subzone <- read_sf(here("data", "raw", "spatial",
                           "MasterPlan2019SubzoneBoundaryNoSeaGEOJSON.geojson")) |>
   st_transform(3414)
 
-# MRT lines, built from station exits + official station codes
-m_exit        <- read_sf(here("data", "raw", "spatial", "LTAMRTStationExitGEOJSON.geojson"))
-station_codes <- read_csv(here("data", "raw", "train_station_codes_2026.csv"))
-mrt_lines     <- make_mrt_lines(m_exit, station_codes)
+# MRT lines: Master Plan rail track, coloured by line using station exits +
+# official station codes (same approach as scripts/Train_all.Rmd)
+m_rail <- read_sf(here("data", "raw", "spatial", "MasterPlan2019RailLinelayer.geojson"))
+m_exit <- read_sf(here("data", "raw", "spatial", "LTAMRTStationExitGEOJSON.geojson"))
+
+station_codes <- read_csv(here("data", "raw", "train_station_codes_2026.csv")) |>
+  transmute(stn_code     = str_to_upper(str_squish(stn_code)),
+            station_name = str_to_upper(str_squish(mrt_station_english))) |>
+  distinct(stn_code, .keep_all = TRUE)
+
+m_station <- m_exit |>
+  st_transform(3414) |>
+  mutate(station_name = str_to_upper(str_squish(STATION_NA)),
+         station_name = str_remove(station_name, " (MRT|LRT) STATION$")) |>
+  group_by(station_name) |>
+  summarise(geometry = st_union(geometry), .groups = "drop") |>
+  st_centroid()
+
+mrt_lines <- make_mrt_lines(m_rail, station_codes, m_station)
 
 # Subzones of the four centres used in this study
 area_center    <- c("PHILLIP", "RAFFLES PLACE", "BAYFRONT SUBZONE", "NICOLL",
@@ -97,6 +112,5 @@ p_study <- sg_map(
              label.padding = unit(0.1, "lines"), nudge_y = 1800)
 p_study
 
-ggsave(here("outputs", "figures", "study_area_map.png"), p_study,
-       width = 9, height = 6, dpi = 300, bg = "white")
+save_fig(p_study, "study_area_map", width = 9, height = 6)
 ```
