@@ -177,12 +177,63 @@ poi_density <- poi_counts %>%
 ```
 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 land_use_3414 <- land_use_raw %>%
   st_make_valid() %>% 
   st_transform(3414)
+
+rm(land_use_raw)
+
+land_use_hubs <- st_intersection(
+  land_use_3414, hubs %>% select(PLN_AREA_N)
+  ) %>% 
+  mutate(hub = str_to_title(PLN_AREA_N))
 ```
 
+```{r}
+land_use_hubs <- land_use_hubs %>%
+  mutate(area_km2 = as.numeric(st_area(geometry)) / 1000000)
 
+land_use_summary_raw <- land_use_hubs %>%
+  group_by(hub, LU_DESC) %>%
+  summarise(
+    total_land_area = sum(area_km2), 
+    .groups = "drop"
+    ) %>%
+  group_by(hub) %>%
+  mutate(
+    total_hub_area = sum(total_land_area),
+    percentage = (total_land_area / total_hub_area) * 100
+  ) %>%
+  ungroup() %>%
+  arrange(hub, desc(percentage))
+```
 
+```{r}
+land_use_summary_clean <- land_use_hubs %>%
+  mutate(
+    land_category = case_when(
+      LU_DESC %in% c("RESIDENTIAL", "RESIDENTIAL WITH COMMERCIAL AT 1ST STOREY", 
+                     "COMMERCIAL & RESIDENTIAL", "WHITE") ~ "Residential& Mixed-Use",
+      LU_DESC %in% c("COMMERCIAL", "HOTEL", "BUSINESS 1", "BUSINESS 2", 
+                     "BUSINESS PARK", "BUSINESS 1 - WHITE", "BUSINESS 2 - WHITE", 
+                     "BUSINESS PARK - WHITE") ~ "Commercial/Business",
+      LU_DESC %in% c("PARK", "OPEN SPACE", "SPORTS & RECREATION", "BEACH AREA") ~ "Leisure/Green",
+      LU_DESC %in% c("EDUCATIONAL INSTITUTION", "CIVIC & COMMUNITY INSTITUTION", 
+                     "PLACE OF WORSHIP", "HEALTH & MEDICAL CARE",
+                     "COMMERCIAL / INSTITUTION", "RESIDENTIAL / INSTITUTION") ~ "Community/Institutional",
+      TRUE ~ "Other")
+  ) %>%
+  group_by(hub, land_category) %>%
+  summarise(total_land_area = sum(area_km2), .groups = "drop") %>%
+  group_by(hub) %>%
+  mutate(percentage = (total_land_area / sum(total_land_area)) * 100) %>%
+  ungroup()
+
+land_use_summary_clean$land_category <- factor(
+  land_use_summary_clean$land_category,
+  levels = c("Residential& Mixed-Use", "Commercial/Business", 
+             "Leisure/Green", "Community/Institutional", "Other")
+)
+```
 
