@@ -1,0 +1,102 @@
+---
+title: "Study area map"
+output: html_document
+---
+
+<!--
+Study area map: Singapore subzones, MRT lines, the CBD and the three regional centres.
+Uses the shared map function sg_map() from R/map_theme.R.
+Input files (all in data/raw/):
+  spatial/MasterPlan2019SubzoneBoundaryNoSeaGEOJSON.geojson
+  spatial/LTAMRTStationExitGEOJSON.geojson
+  train_station_codes_2026.csv
+Output: outputs/figures/study_area_map.png
+-->
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r libraries}
+library(tidyverse)
+library(sf)
+library(here)
+
+source(here("R", "map_theme.R"))     # sg_map(), map style
+source(here("R", "service_shed.R"))  # make_mrt_lines()
+```
+
+```{r data}
+# Singapore subzones (URA Master Plan 2019)
+m_subzone <- read_sf(here("data", "raw", "spatial",
+                          "MasterPlan2019SubzoneBoundaryNoSeaGEOJSON.geojson")) |>
+  st_transform(3414)
+
+# MRT lines, built from station exits + official station codes
+m_exit        <- read_sf(here("data", "raw", "spatial", "LTAMRTStationExitGEOJSON.geojson"))
+station_codes <- read_csv(here("data", "raw", "train_station_codes_2026.csv"))
+mrt_lines     <- make_mrt_lines(m_exit, station_codes)
+
+# Subzones of the four centres used in this study
+area_center    <- c("PHILLIP", "RAFFLES PLACE", "BAYFRONT SUBZONE", "NICOLL",
+                    "ANSON", "TANJONG PAGAR", "MAXWELL", "CECIL",
+                    "CENTRAL SUBZONE", "BUGIS", "MARINA CENTRE", "CITY HALL")
+area_jurong    <- c("JURONG GATEWAY", "INTERNATIONAL BUSINESS PARK",
+                    "LAKESIDE (LEISURE)", "LAKESIDE (BUSINESS)")
+area_woodlands <- c("NORTH COAST", "WOODLANDS REGIONAL CENTRE")
+area_tampines  <- c("TAMPINES NORTH", "TAMPINES WEST", "TAMPINES EAST")
+```
+
+```{r prepare}
+# Which centre each subzone belongs to
+sz <- m_subzone |>
+  mutate(centre = case_when(
+    SUBZONE_N %in% area_center    ~ "CBD",
+    SUBZONE_N %in% area_jurong    ~ "Jurong East",
+    SUBZONE_N %in% area_woodlands ~ "Woodlands",
+    SUBZONE_N %in% area_tampines  ~ "Tampines",
+    TRUE                          ~ NA_character_
+  ),
+  # Fill: CBD / regional centre / rest of Singapore
+  area = case_when(centre == "CBD" ~ "CBD",
+                   !is.na(centre)  ~ "Regional centre",
+                   TRUE            ~ "Other"))
+
+# One outline per centre (its subzones dissolved)
+centre_outline <- sz |>
+  filter(!is.na(centre)) |>
+  group_by(centre) |>
+  summarise(.groups = "drop")
+
+# Label position: a point inside each centre
+centre_label_xy <- centre_outline |>
+  st_point_on_surface() |>
+  mutate(x = st_coordinates(geometry)[, 1],
+         y = st_coordinates(geometry)[, 2]) |>
+  st_drop_geometry()
+```
+
+```{r map, fig.width=9, fig.height=6}
+p_study <- sg_map(
+  sz, area,
+  type         = "discrete",
+  values       = c("CBD" = "#f4b6b6", "Regional centre" = "#a6cee3", "Other" = "white"),
+  breaks       = c("CBD", "Regional centre"),
+  labels       = c("CBD", "Regional centre"),
+  legend_title = "Legend",
+  mrt_lines    = mrt_lines,
+  title        = "Study area",
+  caption      = paste("Data: URA Master Plan 2019 subzones; LTA DataMall MRT station",
+                       "exits and station codes.\nMRT lines are schematic",
+                       "(stations joined in code order).")
+) +
+  # black outline and name of each centre
+  geom_sf(data = centre_outline, fill = NA, colour = "black", linewidth = 0.6) +
+  geom_label(data = centre_label_xy, aes(x = x, y = y, label = centre),
+             size = 3, fontface = "bold", fill = "white", label.size = 0,
+             label.padding = unit(0.1, "lines"), nudge_y = 1800)
+p_study
+
+ggsave(here("outputs", "figures", "study_area_map.png"), p_study,
+       width = 9, height = 6, dpi = 300, bg = "white")
+```

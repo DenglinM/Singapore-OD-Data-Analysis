@@ -1,0 +1,489 @@
+---
+title: "train_2021_2026"
+author: "Fuhan ZHAO"
+date: "2026-11-01"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(tidyverse) # also attaches ggplot2, dplyr, readr, etc.
+library(scales)
+library(patchwork)
+library(sf)
+library(RColorBrewer)
+library(kableExtra)
+library(here)
+library(arrow)
+library(tmap)
+
+source(here("R", "od_io.R"))
+source(here("R", "map_theme.R"))
+```
+
+```{r build-od-parquet}
+# The raw OD CSVs are far larger than memory (bus: ~18 GB in total), so we do
+# not load them all at once. Instead, every monthly CSV in data/raw/OD/ is
+# converted once into a Parquet dataset in data/processed/od_parquet/
+# (about 8x smaller on disk). Months already converted are skipped, so this
+# chunk is slow only the first time and after new months are downloaded.
+build_od_parquet()
+
+od <- open_od() # lazy: nothing is read into memory yet
+od
+```
+
+```{r settings}
+# Sample months: March, June, September, December of each year
+months_sel <- c(202103, 202106, 202109, 202112,
+                202203, 202206, 202209, 202212,
+                202303, 202306, 202309, 202312,
+                202403, 202406, 202409, 202412,
+                202503, 202506, 202509, 202512,
+                202603, 202606, 202609)
+
+# Time periods and labels used in file names
+period_prefix <- c("AM peak"          = "am_peak",
+                   "PM peak"          = "pm_peak",
+                   "Weekday off-peak" = "offpeak",
+                   "Weekend/holiday"  = "weekend")
+
+# COVID phase, following Hou et al. (2025)
+phase_file <- c("SD control" = "sd_control", "Non-control" = "non_control")
+phase_of   <- function(year, month) {
+  if_else(year * 100 + month <= 202203, "SD control", "Non-control")
+}
+
+# Four centres, each defined as a set of subzones (team definition)
+area_center    <- c("PHILLIP", "RAFFLES PLACE", "BAYFRONT SUBZONE", "NICOLL", "ANSON",
+                    "TANJONG PAGAR", "MAXWELL", "CECIL", "CENTRAL SUBZONE", "BUGIS",
+                    "MARINA CENTRE", "CITY HALL")
+area_jurong    <- c("JURONG GATEWAY", "INTERNATIONAL BUSINESS PARK",
+                    "LAKESIDE (LEISURE)", "LAKESIDE (BUSINESS)")
+area_woodlands <- c("NORTH COAST", "WOODLANDS REGIONAL CENTRE")
+area_tampines  <- c("TAMPINES NORTH", "TAMPINES WEST", "TAMPINES EAST")
+
+centres   <- c("CBD", "Jurong Lake District", "Woodlands", "Tampines")
+centre_sz <- list("CBD"                  = area_center,
+                  "Jurong Lake District" = area_jurong,
+                  "Woodlands"            = area_woodlands,
+                  "Tampines"             = area_tampines)
+
+dir.create(here("outputs"), showWarnings = FALSE)
+```
+
+
+```{r load-od}
+od_train_21_26 <- od |>
+  filter(MODE == "train", YYYYMM %in% months_sel) |>
+  collect() |>
+  mutate(
+    YEAR  = YYYYMM %/% 100L,
+    MONTH = YYYYMM %% 100L,
+    period = case_when(
+      DAY_TYPE == "WEEKDAY" & TIME_PER_HOUR %in% c(6, 7, 8, 9)     ~ "AM peak",
+      DAY_TYPE == "WEEKDAY" & TIME_PER_HOUR %in% c(17, 18, 19, 20) ~ "PM peak",
+      DAY_TYPE == "WEEKDAY"                                        ~ "Weekday off-peak",
+      TRUE                                                         ~ "Weekend/holiday"
+    )
+  ) |>
+  group_by(YEAR, MONTH, period, ORIGIN_PT_CODE, DESTINATION_PT_CODE) |>
+  summarise(trips = sum(TOTAL_TRIPS), .groups = "drop") |>
+  mutate(covid_phase = phase_of(YEAR, MONTH))
+
+od_train_21_26 %>% count(YEAR, MONTH, period)   # Check: 4 periods per month
+
+# Number of sample months in each phase (for monthly averages)
+od_train_21_26 %>%
+  distinct(YEAR, MONTH, covid_phase) %>%
+  count(covid_phase, name = "n_months") -> phase_months
+
+phase_months
+```
+
+```{r read spatial data}
+read_sf(
+  here('data', 'raw', 'spatial', 'MasterPlan2019SubzoneBoundaryNoSeaGEOJSON.geojson')
+  ) -> m_subzone
+
+read_sf(
+  here('data', 'raw', 'spatial', 'LTAMRTStationExitGEOJSON.geojson')
+  ) -> m_exit
+
+read_sf(here('data', 'raw', 'spatial', 'MasterPlan2019RailLinelayer.geojson')) -> m_rail
+
+read_csv(
+  here('data', 'raw', 'train_station_codes_2026.csv')
+  ) -> station_lookup
+```
+
+```{r lookup station code}
+station_lookup <- station_lookup %>%
+  transmute(
+    stn_code = str_to_upper(str_squish(stn_code)),
+    station_name = str_to_upper(str_squish(mrt_station_english))
+  ) %>%
+  distinct(stn_code, .keep_all = TRUE)
+```
+
+```{r relate code to station name}
+tibble(pt_code = unique(c(od_train_21_26$ORIGIN_PT_CODE,
+                          od_train_21_26$DESTINATION_PT_CODE))) %>%
+  mutate(code1 = str_split_i(pt_code, "[/-]", 1),    # "EW24/NS1" as "EW24"
+         code2 = str_split_i(pt_code, "[/-]", 2)) %>%  # singal code as NA
+  left_join(station_lookup %>% rename(name1 = station_name),
+            by = c("code1" = "stn_code")) %>%
+  left_join(station_lookup %>% rename(name2 = station_name),
+            by = c("code2" = "stn_code"), na_matches = "never") %>%
+  mutate(station_name = coalesce(name1, name2)) %>%   #recheck
+  select(pt_code, station_name) -> code_lookup
+
+code_lookup %>% filter(is.na(station_name))
+```
+
+```{r station to subzone}
+m_exit %>%
+  st_transform(3414) %>%
+  mutate(station_name = str_to_upper(str_squish(STATION_NA)),
+         station_name = str_remove(station_name, " (MRT|LRT) STATION$")) %>%
+  group_by(station_name) %>%
+  summarise(geometry = st_union(geometry), .groups = "drop") %>%
+  st_centroid() -> m_station
+
+setdiff(code_lookup$station_name, m_station$station_name)
+
+m_station %>%
+  st_join(m_subzone %>% st_transform(3414) %>% select(SUBZONE_N),
+          join = st_within) %>%
+  st_drop_geometry() -> station_sz
+
+code_lookup %>%
+  left_join(station_sz, by = "station_name") %>%
+  select(pt_code, station_name, SUBZONE_N) -> code_sz
+
+code_sz %>% filter(is.na(SUBZONE_N))
+
+mrt_lines_all <- make_mrt_lines(m_rail, station_lookup, m_station)
+mrt_lines_old <- make_mrt_lines(m_rail, station_lookup, m_station, lines = mrt_lines_pre2024)
+```
+
+```{r define 4 centers}
+code_sz <- code_sz %>%
+  mutate(centre = case_when(
+    SUBZONE_N %in% area_center    ~ "CBD",
+    SUBZONE_N %in% area_jurong    ~ "Jurong Lake District",
+    SUBZONE_N %in% area_woodlands ~ "Woodlands",
+    SUBZONE_N %in% area_tampines  ~ "Tampines",
+    TRUE                          ~ "Other"
+  ))
+
+code_sz %>%
+  filter(centre != "Other") %>%
+  arrange(centre, station_name) %>%
+  select(centre, station_name, SUBZONE_N)
+```
+
+```{r join centre to od}
+od_train_21_26 <- od_train_21_26 %>%
+  left_join(code_sz %>% select(pt_code, origin_stn = station_name,
+                               origin_sz = SUBZONE_N, origin_centre = centre),
+            by = c("ORIGIN_PT_CODE" = "pt_code")) %>%
+  left_join(code_sz %>% select(pt_code, dest_stn = station_name,
+                               dest_sz = SUBZONE_N, dest_centre = centre),
+            by = c("DESTINATION_PT_CODE" = "pt_code"))
+
+sum(is.na(od_train_21_26$origin_centre))
+sum(is.na(od_train_21_26$dest_centre))
+```
+
+```{r regional od flows}
+# Table 1: centre-to-centre flow matrix (including "Other")
+# Shows where each centre's trips come from and go to, and how strongly
+# each centre is linked to the CBD
+od_train_21_26 %>%
+  group_by(YEAR, MONTH, period, origin_centre, dest_centre) %>%
+  summarise(trips = sum(trips), .groups = "drop") -> od_centre
+
+# Table 2: flows from every station to each of the four centres
+# Used for mapping each centre's catchment (which stations send trips to it)
+od_train_21_26 %>%
+  filter(dest_centre != "Other") %>%
+  group_by(YEAR, MONTH, period, dest_centre, origin_stn, origin_sz) %>%
+  summarise(trips = sum(trips), .groups = "drop") -> od_station_to_centre
+
+# Check: flows between centres, March 2023, AM peak
+od_centre %>%
+  filter(YEAR == 2023, MONTH == 3, period == "AM peak") %>%
+  pivot_wider(names_from = dest_centre, values_from = trips)
+```
+
+```{r three indicators}
+# For each centre, sum inflow, outflow, internal trips and trips to the CBD
+map(centres, function(cc) {
+  od_centre %>%
+    group_by(YEAR, MONTH, period) %>%
+    summarise(
+      centre   = cc,
+      inflow   = sum(trips[dest_centre == cc & origin_centre != cc]),
+      outflow  = sum(trips[origin_centre == cc & dest_centre != cc]),
+      internal = sum(trips[origin_centre == cc & dest_centre == cc]),
+      to_cbd   = sum(trips[origin_centre == cc & dest_centre == "CBD"]),
+      total    = sum(trips),   # all trips island-wide
+      .groups = "drop"
+    )
+}) %>%
+  list_rbind() %>%
+    mutate(
+      YEAR_MONTH = sprintf("%d-%02d", YEAR, MONTH),                  # "2023-03"
+      zone       = recode(centre, "Jurong Lake District" = "Jurong East"),
+      arrivals   = inflow,                                           # trips entering from outside
+      attraction = inflow / total,                                   # share of island-wide trips
+      cbd_outflow_share = if_else(centre == "CBD", NA_real_, to_cbd / outflow),
+      in_out_ratio      = inflow / outflow,
+      covid_phase = phase_of(YEAR, MONTH)
+    ) %>% # Team format: share of arrivals among the four hubs
+    group_by(YEAR, MONTH, period) %>%
+    mutate(
+      total_hub_arrivals = sum(arrivals),
+      arrival_share      = arrivals / total_hub_arrivals
+    ) %>%
+    ungroup() -> indicators
+```
+
+```{r trip distance}
+# Station coordinates (EPSG:3414, metres)
+m_station %>%
+  mutate(x = st_coordinates(.)[, 1],
+         y = st_coordinates(.)[, 2]) %>%
+  st_drop_geometry() %>%
+  select(station_name, x, y) -> stn_xy
+
+# Average straight-line distance of trips entering each centre from outside
+od_train_21_26 %>%
+  filter(dest_centre != "Other", origin_centre != dest_centre) %>%
+  left_join(stn_xy %>% rename(ox = x, oy = y), by = c("origin_stn" = "station_name")) %>%
+  left_join(stn_xy %>% rename(dx = x, dy = y), by = c("dest_stn" = "station_name")) %>%
+  mutate(dist_km = sqrt((ox - dx)^2 + (oy - dy)^2) / 1000) %>%
+  group_by(YEAR, MONTH, period, centre = dest_centre) %>%
+  summarise(mean_dist_km = weighted.mean(dist_km, trips, na.rm = TRUE),
+            .groups = "drop") -> trip_distance
+
+# Add distance to the indicator table
+indicators <- indicators %>%
+  left_join(trip_distance, by = c("YEAR", "MONTH", "period", "centre"))
+```
+
+```{r 4indicators table}
+indicators %>%
+  group_by(covid_phase, period, zone) %>%
+  summarise(
+    n_months          = n(),
+    attraction        = mean(attraction),
+    in_out_ratio      = mean(in_out_ratio),
+    cbd_outflow_share = mean(cbd_outflow_share),   # NA for the CBD
+    mean_dist_km      = mean(mean_dist_km, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    covid_phase = factor(covid_phase, levels = c("SD control", "Non-control")),
+    period      = factor(period, levels = names(period_prefix)),
+    zone        = factor(zone, levels = c("CBD", "Jurong East", "Woodlands", "Tampines"))
+  ) %>%
+  arrange(covid_phase, period, zone) -> indicator_means
+
+indicator_means %>% filter(covid_phase == "SD control")  %>% select(-covid_phase) -> means_sd
+indicator_means %>% filter(covid_phase == "Non-control") %>% select(-covid_phase) -> means_non
+
+write_csv(means_sd,  here("data", "processed", "mrt_indicator_means_sd_control.csv"))
+write_csv(means_non, here("data", "processed", "mrt_indicator_means_non_control.csv"))
+
+# Formatted table for the report
+make_means_kable <- function(df, caption) {
+  df %>%
+    mutate(across(c(attraction, cbd_outflow_share), ~ percent(.x, accuracy = 0.1)),
+           in_out_ratio = round(in_out_ratio, 2),
+           mean_dist_km = round(mean_dist_km, 1)) %>%
+    select(zone, attraction, in_out_ratio, cbd_outflow_share, mean_dist_km) %>%
+    kbl(caption = caption,
+        col.names = c("Centre", "Attraction", "In/out ratio",
+                      "CBD outflow share", "Mean distance (km)")) %>%
+    kable_styling(full_width = FALSE) %>%
+    pack_rows(index = table(df$period))
+}
+
+make_means_kable(means_sd,  "Mean MRT indicators, SD control period")
+make_means_kable(means_non, "Mean MRT indicators, non-control period")
+```
+
+```{r arrivals csv}
+# YEAR_MONTH | zone | <period>_arrivals | total_hub_arrivals | arrival_share_cores |
+# total_island_trips | arrival_share_island
+for (p in names(period_prefix)) {
+  prefix <- period_prefix[[p]]
+
+  tbl <- indicators %>%
+    filter(period == p) %>%
+    transmute(YEAR_MONTH, covid_phase, zone,
+              "{prefix}_arrivals" := arrivals,
+              total_hub_arrivals,
+              arrival_share_cores  = arrival_share,
+              total_island_trips   = total,
+              arrival_share_island = attraction) %>%
+    arrange(YEAR_MONTH, zone)
+
+  for (ph in names(phase_file)) {
+    tbl %>%
+      filter(covid_phase == ph) %>%
+      select(-covid_phase) %>%
+      write_csv(here("data", "processed",
+                     paste0("mrt_", prefix, "_arrivals_", phase_file[[ph]], ".csv")))
+  }
+}
+```
+
+```{r Monthly-average flow}
+# Monthly-average flow from each origin subzone into each centre, by phase and period,
+# then classify origin subzones by cumulative share of inflow (Hou et al. 2025)
+od_train_21_26 %>%
+  filter(dest_centre != "Other") %>%
+  mutate(covid_phase = phase_of(YEAR, MONTH)) %>%
+  group_by(covid_phase, period, centre = dest_centre, origin_sz) %>%
+  summarise(trips = sum(trips), .groups = "drop") %>%
+  left_join(phase_months, by = "covid_phase") %>%
+  mutate(trips = trips / n_months) %>%
+  group_by(covid_phase, period, centre) %>%
+  arrange(desc(trips), .by_group = TRUE) %>%
+  mutate(
+    share      = trips / sum(trips),
+    cum_before = cumsum(share) - share,
+    shed = case_when(
+      cum_before < 0.25 ~ "Core",
+      cum_before < 0.50 ~ "Strong",
+      cum_before < 0.75 ~ "Weak",
+      TRUE              ~ "Peripheral"
+    )
+  ) %>%
+  ungroup() -> service_shed
+
+# Check: number of subzones in each class
+service_shed %>%
+  count(covid_phase, period, centre, shed) %>%
+  pivot_wider(names_from = shed, values_from = n)
+```
+
+```{r mapping}
+bb_sg <- st_bbox(st_transform(m_subzone, 3414))   # same extent for every panel
+
+# One panel: service shed of one centre, in one phase and period
+shed_panel <- function(phase, period_name, cc, tag) {
+  shed_cc <- service_shed %>%
+    filter(covid_phase == phase, period == period_name, centre == cc) %>%
+    select(SUBZONE_N = origin_sz, shed)
+
+  map_data <- m_subzone %>%
+    left_join(shed_cc, by = "SUBZONE_N") %>%
+    mutate(shed = factor(replace_na(shed, "No flow"), levels = shed_levels))
+
+  outline <- m_subzone %>%
+    filter(SUBZONE_N %in% centre_sz[[cc]]) %>%
+    summarise() %>%                      # merge the centre's subzones into one outline
+    mutate(centre = cc)
+
+    sg_map(map_data, shed, values = shed_colours, breaks = shed_breaks,
+         labels = shed_labels, outline = outline, centre_label = "",
+         legend = "right", bb = bb_sg,
+         mrt_lines = if (phase == "SD control") mrt_lines_old else mrt_lines_all,
+         title = paste0("(", tag, ") ", cc))
+}
+
+# Full figure: the four centres for one phase and period
+shed_figure <- function(phase, period_name) {
+  n_m <- phase_months$n_months[phase_months$covid_phase == phase]
+
+  map2(c("CBD", "Jurong Lake District", "Woodlands", "Tampines"), letters[1:4],
+       ~ shed_panel(phase, period_name, .x, .y)) %>%
+    wrap_plots(ncol = 2) +
+    plot_layout(guides = "collect") +
+    plot_annotation(
+      title    = paste0("MRT/LRT service sheds (", period_name, ", ", phase, " period)"),
+      subtitle = "Origin subzones ranked by their share of MRT/LRT trips entering the centre (cumulative %).",
+      caption  = paste0("Data: LTA DataMall passenger volume by OD (MRT/LRT), monthly average of ",
+                        n_m, " months; URA Master Plan 2019 subzones.")
+    )
+}
+
+# Draw and save every phase x period
+for (ph in names(phase_file)) {
+  for (p in names(period_prefix)) {
+    fig <- shed_figure(ph, p)
+    print(fig)
+    ggsave(here("outputs", "figures", paste0("shed_", phase_file[[ph]], "_", period_prefix[[p]], ".png")),
+           fig, width = 12, height = 9, dpi = 300)
+  }
+}
+```
+
+```{r Principal shed}
+# Principal shed = core + strong
+principal <- service_shed %>%
+  filter(shed %in% c("Core", "Strong")) %>%
+  select(covid_phase, period, centre, origin_sz)
+
+# Off-diagonal: principal subzones shared by centres i and j
+principal %>%
+  inner_join(principal, by = c("covid_phase", "period", "origin_sz"),
+             suffix = c("_i", "_j"), relationship = "many-to-many") %>%
+  filter(centre_i != centre_j) %>%
+  count(covid_phase, period, centre_i, centre_j, name = "n_shared") -> shared
+
+principal %>%
+  count(covid_phase, period, centre_j = centre, name = "n_j") -> n_principal
+
+# Diagonal: self-containment (share of j's principal subzones not shared with any other centre)
+principal %>%
+  add_count(covid_phase, period, origin_sz, name = "n_centres") %>%
+  group_by(covid_phase, period, centre_j = centre) %>%
+  summarise(self = mean(n_centres == 1), .groups = "drop") -> self_contain
+
+# O(i, j) = shared subzones / subzones in centre j's principal shed
+expand_grid(covid_phase = names(phase_file),
+            period      = names(period_prefix),
+            centre_i    = centres,
+            centre_j    = centres) %>%
+  left_join(shared,       by = c("covid_phase", "period", "centre_i", "centre_j")) %>%
+  left_join(n_principal,  by = c("covid_phase", "period", "centre_j")) %>%
+  left_join(self_contain, by = c("covid_phase", "period", "centre_j")) %>%
+  mutate(overlap = if_else(centre_i == centre_j, self, replace_na(n_shared, 0) / n_j)) %>%
+  select(covid_phase, period, centre_i, centre_j, overlap) -> overlap_matrix
+
+write_csv(overlap_matrix, here("data", "processed", "mrt_overlap_matrix.csv"))
+
+# Two matrices (SD control | non-control) for one time period
+overlap_figure <- function(period_name) {
+  mat <- function(phase, tag) {
+    stylized_matrix(centre_j, centre_i, overlap,
+                    data = filter(overlap_matrix, covid_phase == phase, period == period_name),
+                    limits = c(0, 1), legend_title = "Overlap",
+                    title = phase, tag = tag)
+  }
+
+  (mat("SD control", "A") | mat("Non-control", "B")) +
+    plot_layout(guides = "collect") +
+    plot_annotation(
+      title   = paste0("Overlap of principal service sheds (", period_name, ")"),
+      caption = paste0("O(i, j) = share of centre j's principal-shed subzones (column) that are also ",
+                       "in centre i's (row); diagonal = self-containment.\n",
+                       "Principal shed = core + strong.")
+    ) &
+    theme(legend.position = "bottom")
+}
+
+for (p in names(period_prefix)) {
+  fig <- overlap_figure(p)
+  print(fig)
+  ggsave(here("outputs", "figures", paste0("overlap_", period_prefix[[p]], ".png")),
+         fig, width = 9, height = 5, dpi = 300)
+}
+```

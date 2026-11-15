@@ -46,11 +46,19 @@ read_od_month <- function(mode, yyyymm, raw_dir = od_raw_dir) {
 # Convert every origin_destination_<mode>_<YYYYMM>.csv in raw_dir into
 # out_dir/MODE=<mode>/YYYYMM=<YYYYMM>/part-0.parquet.
 # Months that already exist are skipped unless overwrite = TRUE, so this is
-# cheap to re-run after downloading new months.
+# cheap to re-run after downloading new months. Once converted, the CSVs
+# can be deleted locally (keep a backup on the group OneDrive).
 build_od_parquet <- function(raw_dir = od_raw_dir, out_dir = od_parquet_dir,
                              overwrite = FALSE) {
   files <- list.files(raw_dir, pattern = "^origin_destination_(train|bus)_[0-9]{6}\\.csv$")
-  if (length(files) == 0) stop("No OD CSV files found in ", raw_dir, call. = FALSE)
+  if (length(files) == 0) {
+    # The CSVs may have been deleted after conversion; the Parquet copy is enough
+    if (dir.exists(out_dir)) {
+      message("No OD CSV files in ", raw_dir, "; using the existing Parquet dataset.")
+      return(invisible(out_dir))
+    }
+    stop("No OD CSV files found in ", raw_dir, call. = FALSE)
+  }
 
   mode   <- sub("^origin_destination_(train|bus)_.*$", "\\1", files)
   yyyymm <- sub("^.*_([0-9]{6})\\.csv$", "\\1", files)
