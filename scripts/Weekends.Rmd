@@ -644,7 +644,7 @@ p_weekend_composite <- (
     title = "Weekend Functional Attractiveness of Regional Centres",
     subtitle = "Functional provision, land-use composition and public transport attraction",
     caption = paste0(
-      "Note: POI count shows the number of OSM POIs by category; mini heat strips show POI density (POIs/km²). ",
+      "Note: POI count shows the number of OSM POIs by category; mini heat strips show POI density (POIs/km²). Weekend observations include public holidays.",
       "\nLand-use composition represents the percentage of land area by category. ",
       "Attraction share = arrivals to centre / island-wide trips, averaged across sampled months.\n",
       "Data: OpenStreetMap (2026); URA Master Plan 2019; ",
@@ -659,4 +659,24 @@ p_weekend_composite <- (
 
 p_weekend_composite
 ```
+
+```{r final-cleanup, include=FALSE}
+rm(list = setdiff(
+  ls(all.names = TRUE),
+  c(
+    "p_weekend_composite",
+    "p_poi_bundle",
+    "p_landuse",
+    "p_attraction",
+    "poi_counts",
+    "poi_density",
+    "land_use_summary_clean",
+    "attraction_plot_data",
+    "weekend_arrivals_all"
+  )
+))
+
+gc()
+```
+
 
