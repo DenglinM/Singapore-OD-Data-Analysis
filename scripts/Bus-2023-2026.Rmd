@@ -229,7 +229,7 @@ trip_distance_summary <- total_bus %>%
 ```
 
 ```{r}
-weekend_attraction <- total_bus %>%
+weekend_attraction_bus <- total_bus %>%
   filter(DAY_TYPE == "WEEKENDS/HOLIDAY") %>%
   inner_join(dict_hub_stop, by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM")) %>%
   filter(zone %in% c("Jurong East", "Tampines", "Woodlands")) %>%
