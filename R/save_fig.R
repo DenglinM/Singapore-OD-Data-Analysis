@@ -1,66 +1,64 @@
-# Save and embed report figures
+# Save figures/tables in the analysis Rmds, embed them in the report
 # =============================================================================
-# The analysis Rmds do the heavy work and SAVE their figures as PNG files in
-# outputs/figures/. The summary report (docs/report/report.Rmd) only EMBEDS
-# those files, so it knits in seconds and does not need the raw OD data.
+# The analysis Rmds (scripts/) do the heavy work and SAVE their results:
+#   figures -> outputs/figures/<name>.png   (save_fig)
+#   tables  -> outputs/tables/<name>.rds    (save_tab; small summary tables)
+# The report (docs/report/report.Rmd) only READS these files (show_fig,
+# show_tab), so it knits in seconds and does not need the raw OD data.
 #
 #   In an analysis Rmd:
 #     source(here::here("R", "save_fig.R"))
-#     p <- stylized_line(...)
-#     save_fig(p, "fig02_train_attraction")      # -> outputs/figures/fig02_train_attraction.png
+#     save_fig(p, "bus_overlap_am_peak", width = 9, height = 5)
+#     save_tab(metrics_table, "bus_indicator_means")
 #
 #   In the report:
-#     ```{r fig.cap = "Caption text"}
-#     show_fig("fig02_train_attraction")
+#     ```{r fig.cap = "Figure 1. ..."}
+#     show_fig("study_area_map")
 #     ```
 #
-# File naming: figNN_<mode>_<topic>.png, all lower case, no spaces. NN is the
-# planned position in the report (see outputs/figures/README.md), so names
-# stay stable even when the analysis code moves around.
+# Tables are saved as .rds (not .csv) because .gitignore blocks *.csv.
 # =============================================================================
 
 fig_dir <- here::here("outputs", "figures")
+tab_dir <- here::here("outputs", "tables")
 
-# Default sizes in inches (at 300 dpi). A4 text width is about 6.5 in.
-fig_sizes <- list(
-  wide   = c(width = 7,   height = 4),    # line charts, bar charts
-  square = c(width = 6,   height = 6),    # matrices
-  map    = c(width = 7,   height = 5),    # single Singapore map
-  facet  = c(width = 7,   height = 7.5)   # multi-panel maps
-)
-
-# save_fig(): write a ggplot to outputs/figures/<name>.png and return the path
-#   plot   a ggplot object (default: the last plot drawn)
-#   name   file name without extension, e.g. "fig02_train_attraction"
-#   size   one of names(fig_sizes), or give width / height directly
-save_fig <- function(plot = ggplot2::last_plot(), name,
-                     size = c("wide", "square", "map", "facet"),
-                     width = NULL, height = NULL, dpi = 300) {
-  size <- match.arg(size)
+# save_fig(): write a ggplot / patchwork to outputs/figures/<name>.png
+save_fig <- function(plot, name, width = 9, height = 6, dpi = 300) {
   stopifnot(is.character(name), length(name) == 1, !grepl("[ /\\\\]", name))
-  dims <- fig_sizes[[size]]
-  path <- file.path(fig_dir, paste0(name, ".png"))
   dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
-  ggplot2::ggsave(path, plot = plot,
-                  width  = width  %||% dims[["width"]],
-                  height = height %||% dims[["height"]],
+  path <- file.path(fig_dir, paste0(name, ".png"))
+  ggplot2::ggsave(path, plot = plot, width = width, height = height,
                   dpi = dpi, bg = "white")
   message("Saved ", path)
   invisible(path)
 }
 
-# show_fig(): embed a saved figure in an Rmd. If the file does not exist yet
-# (the analysis that makes it has not been run), a short note is printed
-# instead, so the report still knits while work is in progress.
-show_fig <- function(name, dir = fig_dir) {
-  path <- file.path(dir, paste0(name, ".png"))
-  if (file.exists(path)) {
-    knitr::include_graphics(path, rel_path = FALSE)
-  } else {
-    knitr::asis_output(sprintf(
-      "\n\n> **Figure not available yet:** `%s.png`. Run the analysis Rmd that saves it (see `outputs/figures/README.md`).\n\n",
-      name))
-  }
+# save_tab(): write a small data frame to outputs/tables/<name>.rds
+save_tab <- function(data, name) {
+  stopifnot(is.data.frame(data), is.character(name), length(name) == 1)
+  if (inherits(data, "sf")) data <- sf::st_drop_geometry(data)  # keep files small
+  dir.create(tab_dir, recursive = TRUE, showWarnings = FALSE)
+  path <- file.path(tab_dir, paste0(name, ".rds"))
+  saveRDS(data, path)
+  message("Saved ", path)
+  invisible(path)
 }
 
-if (!exists("%||%")) `%||%` <- function(a, b) if (is.null(a)) b else a
+# Note printed in the report when a file has not been produced yet
+missing_note <- function(file) {
+  knitr::asis_output(sprintf(
+    "\n\n**[Missing: `%s`. Run the analysis Rmd that makes it.]**\n\n", file))
+}
+
+# show_fig(): embed a saved figure (or a note if it does not exist yet)
+show_fig <- function(name) {
+  path <- file.path(fig_dir, paste0(name, ".png"))
+  if (file.exists(path)) knitr::include_graphics(path, rel_path = FALSE)
+  else missing_note(paste0("outputs/figures/", name, ".png"))
+}
+
+# read_tab(): read a saved table, or NULL if it does not exist yet
+read_tab <- function(name) {
+  path <- file.path(tab_dir, paste0(name, ".rds"))
+  if (file.exists(path)) readRDS(path) else NULL
+}

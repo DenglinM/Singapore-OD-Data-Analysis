@@ -237,44 +237,40 @@ land_use_summary_clean$land_category <- factor(
 ```
 
 
-# Figures for the report
-
-The chunks below save each figure to `outputs/figures/` with `save_fig()`.
-The summary report (`docs/report/report.Rmd`) only embeds these PNG files,
-so re-run this section whenever the results above change.
-
-```{r report-figures-setup}
-source(here("R", "map_theme.R"))
+```{r save-report-outputs}
+# Figures and tables for the report (docs/report/report.Rmd embeds these files)
+source(here("R", "map_theme.R"))   # line_colours, line_chart_theme
 source(here("R", "save_fig.R"))
-```
 
-```{r fig11-hub-land-use}
-p <- ggplot(land_use_summary_clean,
-            aes(x = hub, y = percentage / 100, fill = land_category)) +
+# Land-use mix of the three regional centres
+p_land_use <- ggplot(land_use_summary_clean,
+                     aes(x = hub, y = percentage / 100, fill = land_category)) +
   geom_col(width = 0.6, colour = "white", linewidth = 0.3) +
   scale_y_continuous(labels = scales::label_percent(), expand = c(0, 0)) +
   scale_fill_brewer(palette = "Set2", name = "Land use") +
-  labs(x = NULL, y = "Share of planning-area land",
+  labs(x = NULL, y = "Share of land area",
        title = "Land-use mix of the three regional centres",
-       caption = "Source: URA Master Plan 2019 land use (amended)") +
+       caption = "Data: URA Master Plan 2019 Land Use layer (amended).") +
   line_chart_theme +
   theme(legend.position = "right", legend.direction = "vertical",
         legend.key.width = unit(0.5, "cm"))
-save_fig(p, "fig11_hub_land_use")
-p
-```
+p_land_use
+save_fig(p_land_use, "hub_land_use", width = 8, height = 4.5)
 
-```{r fig12-hub-poi-density}
-p <- ggplot(poi_density,
-            aes(x = poi_category, y = density_per_km2, fill = hub)) +
+# Density of weekend-relevant points of interest
+p_poi <- ggplot(poi_density,
+                aes(x = poi_category, y = density_per_km2, fill = hub)) +
   geom_col(position = position_dodge(width = 0.75), width = 0.7) +
   scale_fill_manual(values = line_colours[1:3], name = "Regional centre") +
   scale_x_discrete(labels = function(x) gsub("_", " ", x)) +
   scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
-  labs(x = NULL, y = "POIs per km2",
-       title = "Density of weekend-relevant points of interest",
-       caption = "Source: OpenStreetMap (Geofabrik extract)") +
+  labs(x = NULL, y = "POIs per km²",
+       title = "Density of points of interest in the regional centres",
+       caption = "Data: OpenStreetMap contributors (ODbL), Geofabrik extract.") +
   line_chart_theme
-save_fig(p, "fig12_hub_poi_density")
-p
+p_poi
+save_fig(p_poi, "hub_poi_density", width = 8, height = 4.5)
+
+save_tab(land_use_summary_clean, "hub_land_use")
+save_tab(poi_density, "hub_poi_density")
 ```

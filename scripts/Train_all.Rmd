@@ -487,3 +487,11 @@ for (p in names(period_prefix)) {
          fig, width = 9, height = 5, dpi = 300)
 }
 ```
+
+```{r save-report-outputs}
+# Save the indicator table for the report. The service-shed maps and overlap
+# matrices are already saved to outputs/figures/ by the chunks above.
+source(here("R", "save_fig.R"))
+
+save_tab(indicator_means, "mrt_indicator_means")
+```
