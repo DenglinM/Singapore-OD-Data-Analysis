@@ -1,0 +1,130 @@
+---
+title: "Do Singapore's Regional Centres Reduce Reliance on the CBD? Evidence from Public Transport OD Data"
+author: "Group project"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    fig_caption: true
+  word_document:
+    toc: true
+    fig_caption: true
+---
+
+<!--
+HOW THIS REPORT WORKS
+This file does NO analysis. Every figure is a PNG saved by one of the analysis
+Rmds in scripts/ (with save_fig(), see R/save_fig.R) and embedded here with
+show_fig(). To update a figure, re-run the analysis Rmd that makes it (listed
+in outputs/figures/README.md), commit the new PNG, then knit this file.
+A figure that has not been produced yet shows a short note instead, so the
+report always knits.
+Fill in the text marked [TODO].
+-->
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
+                      out.width = "100%", fig.align = "center")
+source(here::here("R", "save_fig.R"))
+```
+
+# Introduction
+
+[TODO] Background on Singapore's decentralisation strategy (Concept Plan /
+Master Plan regional centres) and the research question: have Jurong East
+(Jurong Lake District), Tampines and Woodlands promoted travel within their
+regions and reduced long-distance commuting to the CBD?
+
+# Data and methods
+
+## Data
+
+[TODO] LTA DataMall monthly OD data (MRT/LRT and bus; sampled months March,
+June, September, December), URA Master Plan 2019 subzones and land use, LTA
+MRT station exits and bus stops, OpenStreetMap points of interest.
+
+## Study areas
+
+```{r fig-centre-map, fig.cap = "The CBD and the three regional centres, defined as groups of URA subzones."}
+show_fig("fig01_centre_map")
+```
+
+## Indicators
+
+[TODO] Define attraction share, CBD outflow share, inflow/outflow ratio and
+trip-weighted mean distance; weekday AM peak = 06:00-10:00.
+
+# Results
+
+## MRT, 2021-2023
+
+```{r fig-train-attraction, fig.cap = "Share of island-wide weekday AM-peak MRT trips ending in each centre, 2021-2023."}
+show_fig("fig02_train_attraction_2021_2023")
+```
+
+[TODO] Interpretation.
+
+```{r fig-train-cbd-outflow, fig.cap = "Share of AM-peak MRT trips leaving each regional centre that end in the CBD, 2021-2023."}
+show_fig("fig03_train_cbd_outflow_2021_2023")
+```
+
+```{r fig-train-flow-matrix, fig.cap = "Centre-to-centre MRT flows, March 2023 weekday AM peak. Each row sums to 100%.", out.width = "75%"}
+show_fig("fig04_train_flow_matrix_2023")
+```
+
+```{r fig-train-distance, fig.cap = "Trip-weighted mean straight-line distance of MRT trips entering each centre, 2021-2023."}
+show_fig("fig05_train_trip_distance_2021_2023")
+```
+
+## MRT, 2024-2026
+
+[TODO] Figures from `scripts/Train_2024_2026.Rmd` once the indicators are
+computed there (suggested names: `fig13_train_attraction_2024_2026` ...).
+
+## Bus, 2023-2026
+
+```{r fig-bus-attraction, fig.cap = "Share of island-wide weekday AM-peak bus trips ending in each centre, 2023-2026."}
+show_fig("fig06_bus_attraction_2023_2026")
+```
+
+```{r fig-bus-cbd-outflow, fig.cap = "Share of AM-peak bus trips leaving each regional centre that end in the CBD, 2023-2026."}
+show_fig("fig07_bus_cbd_outflow_2023_2026")
+```
+
+```{r fig-bus-in-out, fig.cap = "Ratio of AM-peak bus arrivals to departures for each centre, 2023-2026."}
+show_fig("fig08_bus_in_out_ratio_2023_2026")
+```
+
+```{r fig-bus-distance, fig.cap = "Trip-weighted mean straight-line distance of bus trips entering each centre, 2023-2026."}
+show_fig("fig09_bus_trip_distance_2023_2026")
+```
+
+## Weekend travel and land use
+
+```{r fig-bus-weekend, fig.cap = "Weekend and public-holiday bus arrivals at the three regional centres, 2023-2026."}
+show_fig("fig10_bus_weekend_arrivals_2023_2026")
+```
+
+```{r fig-land-use, fig.cap = "Land-use composition of the three regional centres (URA Master Plan 2019)."}
+show_fig("fig11_hub_land_use")
+```
+
+```{r fig-poi, fig.cap = "Density of points of interest by category in the three regional centres (OpenStreetMap)."}
+show_fig("fig12_hub_poi_density")
+```
+
+# Discussion
+
+[TODO] Compare the three centres; link flow patterns to land use; data
+reliability issues (sampled months, straight-line distance, station code
+changes).
+
+# Conclusion
+
+[TODO]
+
+# References
+
+[TODO]

@@ -237,3 +237,70 @@ weekend_attraction <- total_bus %>%
   summarise(weekend_arrivals = sum(TOTAL_TRIPS), .groups = "drop")
 ```
 
+
+# Figures for the report
+
+The chunks below save each figure to `outputs/figures/` with `save_fig()`.
+The summary report (`docs/report/report.Rmd`) only embeds these PNG files,
+so re-run this section whenever the results above change.
+
+```{r report-figures-setup}
+source(here("R", "map_theme.R"))
+source(here("R", "save_fig.R"))
+```
+
+```{r fig06-bus-am-share}
+p <- stylized_line(YEAR_MONTH, am_share, zone, data = bus_share_am,
+                   x_lab = NULL, y_lab = "Share of island-wide AM-peak bus trips",
+                   legend_title = "Destination centre",
+                   y_labels = scales::label_percent(accuracy = 0.1),
+                   title = "Bus attraction of each centre, 2023-2026",
+                   caption = "Weekday AM peak (06:00-10:00). Source: LTA DataMall OD data")
+save_fig(p, "fig06_bus_attraction_2023_2026")
+p
+```
+
+```{r fig07-bus-cbd-outflow}
+p <- stylized_line(YEAR_MONTH, cbd_share_pct / 100, original_zone,
+                   data = filter(cbd_outflow_share, original_zone != "CBD"),
+                   x_lab = NULL, y_lab = "Share of departing bus trips going to the CBD",
+                   legend_title = "Origin centre",
+                   y_labels = scales::label_percent(accuracy = 0.1),
+                   title = "Reliance of regional centres on the CBD (bus), 2023-2026",
+                   caption = "Weekday AM peak. Source: LTA DataMall OD data")
+save_fig(p, "fig07_bus_cbd_outflow_2023_2026")
+p
+```
+
+```{r fig08-bus-in-out-ratio}
+p <- stylized_line(YEAR_MONTH, in_out_ratio, zone, data = in_out_ratio_after23,
+                   x_lab = NULL, y_lab = "Arrivals / departures",
+                   legend_title = "Centre",
+                   y_labels = scales::label_number(accuracy = 0.01),
+                   title = "Bus inflow-outflow ratio of each centre, 2023-2026",
+                   caption = "Weekday AM peak. A ratio above 1 means the centre attracts more trips than it sends")
+save_fig(p, "fig08_bus_in_out_ratio_2023_2026")
+p
+```
+
+```{r fig09-bus-trip-distance}
+p <- stylized_line(YEAR_MONTH, weighted_avg_dist_km, dest_zone,
+                   data = trip_distance_summary,
+                   x_lab = NULL, y_lab = "Mean straight-line distance (km)",
+                   legend_title = "Destination centre",
+                   y_labels = scales::label_number(accuracy = 0.1),
+                   title = "Mean bus trip distance into each centre, 2023-2026",
+                   caption = "Weighted by trips. Weekday AM peak")
+save_fig(p, "fig09_bus_trip_distance_2023_2026")
+p
+```
+
+```{r fig10-bus-weekend-arrivals}
+p <- stylized_line(YEAR_MONTH, weekend_arrivals, zone, data = weekend_attraction,
+                   x_lab = NULL, y_lab = "Weekend / holiday bus arrivals",
+                   legend_title = "Regional centre",
+                   title = "Weekend bus arrivals at the regional centres, 2023-2026",
+                   caption = "All hours, weekends and public holidays. Source: LTA DataMall OD data")
+save_fig(p, "fig10_bus_weekend_arrivals_2023_2026")
+p
+```
