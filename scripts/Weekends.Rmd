@@ -626,7 +626,7 @@ p_attraction <- ggplot(
   )
 ```
 
-```{r, fig.width=15, fig.height=12, out.width="100%"}
+```{r, fig.width=15, fig.height=10, out.width="100%"}
 p_top <- (
   p_poi_bundle | p_landuse
 ) +
