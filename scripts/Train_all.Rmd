@@ -240,7 +240,7 @@ map(centres, function(cc) {
       zone       = recode(centre, "Jurong Lake District" = "Jurong East"),
       arrivals   = inflow,                                           # trips entering from outside
       attraction = inflow / total,                                   # share of island-wide trips
-      cbd_outflow_share = if_else(centre == "CBD", NA_real_, to_cbd / outflow),
+      cbd_outflow_share = to_cbd / (outflow + internal),   # trips to CBD stations / all departures
       in_out_ratio      = inflow / outflow,
       covid_phase = phase_of(YEAR, MONTH)
     ) %>% # Team format: share of arrivals among the four hubs
@@ -300,21 +300,40 @@ write_csv(means_sd,  here("data", "processed", "mrt_indicator_means_sd_control.c
 write_csv(means_non, here("data", "processed", "mrt_indicator_means_non_control.csv"))
 
 # Formatted table for the report
-make_means_kable <- function(df, caption) {
-  df %>%
-    mutate(across(c(attraction, cbd_outflow_share), ~ percent(.x, accuracy = 0.1)),
-           in_out_ratio = round(in_out_ratio, 2),
-           mean_dist_km = round(mean_dist_km, 1)) %>%
-    select(zone, attraction, in_out_ratio, cbd_outflow_share, mean_dist_km) %>%
-    kbl(caption = caption,
-        col.names = c("Centre", "Attraction", "In/out ratio",
-                      "CBD outflow share", "Mean distance (km)")) %>%
-    kable_styling(full_width = FALSE) %>%
-    pack_rows(index = table(df$period))
+# Formatted tables for the report: one per time period, same layout as the bus tables
+make_period_kable <- function(period_name, title) {
+  indicator_means %>%
+    filter(period == period_name) %>%
+    mutate(
+      centre = recode(as.character(zone), "Jurong East" = "Jurong Lake District"),
+      centre = factor(centre, levels = c("Woodlands", "Tampines",
+                                         "Jurong Lake District", "CBD")),
+      phase  = recode(as.character(covid_phase), "SD control" = "SD Control")
+    ) %>%
+    arrange(centre, covid_phase) %>%
+    transmute(
+      centre, phase,
+      attraction   = round(attraction * 100, 2),
+      in_out_ratio = round(in_out_ratio, 2),
+      cbd_outflow  = round(cbd_outflow_share * 100, 2),
+      mean_dist_km = round(mean_dist_km, 2)
+    ) %>%
+    kbl(caption = title,
+        col.names = c("Centre", "Period", "Attraction (%)", "In/Out Ratio",
+                      "CBD Outflow (%)", "Average Distance (km)"),
+        align = c("l", "l", "r", "r", "r", "r")) %>%
+    kable_styling(bootstrap_options = "striped", full_width = FALSE) %>%
+    collapse_rows(columns = 1, valign = "middle")
 }
 
-make_means_kable(means_sd,  "Mean MRT indicators, SD control period")
-make_means_kable(means_non, "Mean MRT indicators, non-control period")
+options(knitr.kable.NA = "–")   # CBD outflow share is not defined for the CBD itself
+
+make_period_kable("AM peak",
+                  "Comparison of MRT Mobility Indicators between SD Control and Non-control Periods (AM Peak)")
+make_period_kable("PM peak",
+                  "Comparison of MRT Mobility Indicators between SD Control and Non-control Periods (PM Peak)")
+make_period_kable("Weekend/holiday",
+                  "Comparison of MRT Mobility Indicators between SD Control and Non-control Periods (Weekend)")
 ```
 
 ```{r arrivals csv}
