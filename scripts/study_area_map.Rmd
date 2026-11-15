@@ -7,7 +7,6 @@ output: html_document
 Study area map: Singapore subzones, MRT lines, the CBD and the three regional centres.
 Uses the shared map function sg_map() from R/map_theme.R.
 Input files (all in data/raw/):
-  spatial/MasterPlan2019RailLinelayer.geojson
   spatial/MasterPlan2019SubzoneBoundaryNoSeaGEOJSON.geojson
   spatial/LTAMRTStationExitGEOJSON.geojson
   train_station_codes_2026.csv

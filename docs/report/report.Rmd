@@ -24,7 +24,7 @@ HOW THIS REPORT IS BUILT
     scripts/Bus_SDand_After SD.Rmd    -> bus_shed_<phase>_am_peak.png,
                                          bus_overlap_am_peak.png,
                                          bus_indicator_means.rds
-    scripts/Weekends.Rmd              -> hub_land_use.png, hub_poi_density.png
+    scripts/Weekends.Rmd              -> weekend_composite.png
 - Run (knit) those four Rmds first, then knit this file.
 - Submission must be ONE PDF: knit to Word, check layout, then
   File > Save As > PDF. Limit: 10 pages (put extra maps in the Appendix).
@@ -229,17 +229,13 @@ show_fig("bus_overlap_am_peak")
 [Interpretation of Figures 6-7: do the regional centres draw from their own
 regions (high self-containment) or compete with the CBD for the same subzones?]
 
-## Land use and amenities
+## Weekend attractiveness, land use and amenities
 
-```{r fig-land-use, fig.cap = "Figure 8. Land-use composition of the three regional centres (URA Master Plan 2019)."}
-show_fig("hub_land_use")
+```{r fig-weekend, fig.cap = "Figure 8. Weekend functional attractiveness of the regional centres: (a) POI count and (b) POI density by category (OpenStreetMap), (c) land-use composition (URA Master Plan 2019), (d) weekend public transport attraction share, SD control vs non-control."}
+show_fig("weekend_composite")
 ```
 
-```{r fig-poi, fig.cap = "Figure 9. Density of points of interest by category in the three regional centres (OpenStreetMap)."}
-show_fig("hub_poi_density")
-```
-
-[Interpretation of Figures 8-9 and how land use / amenities may explain the
+[Interpretation of Figure 8 and how land use / amenities may explain the
 differences between centres]
 
 # Discussion

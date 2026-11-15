@@ -590,7 +590,78 @@ sd_months <- c(
   202103, 202106, 202109, 202112,
   202203
 )
+```
 
+```{r}
+weekend_months <- c(sd_months, selected_months)
+
+weekend_od <- od %>%
+  filter(
+    MODE == "bus",
+    YYYYMM %in% weekend_months,
+    DAY_TYPE == "WEEKENDS/HOLIDAY"
+  ) %>%
+  group_by(YEAR_MONTH, DESTINATION_PT_CODE) %>%
+  summarise(
+    trips = sum(TOTAL_TRIPS, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  collect()
+
+weekend_island_total <- weekend_od %>%
+  group_by(YEAR_MONTH) %>%
+  summarise(
+    total_island_trips = sum(trips),
+    .groups = "drop"
+  )
+
+weekend_hub_arrivals <- weekend_od %>%
+  inner_join(
+    dict_hub_stop,
+    by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM")
+  ) %>%
+  group_by(YEAR_MONTH, zone) %>%
+  summarise(
+    weekend_arrivals = sum(trips),
+    .groups = "drop"
+  )
+
+bus_weekend_arrivals <- weekend_hub_arrivals %>%
+  left_join(
+    weekend_island_total,
+    by = "YEAR_MONTH"
+  ) %>%
+  mutate(
+    arrival_share_island = weekend_arrivals / total_island_trips
+  ) %>%
+  select(
+    YEAR_MONTH,
+    zone,
+    weekend_arrivals,
+    total_island_trips,
+    arrival_share_island
+  ) %>%
+  arrange(YEAR_MONTH, zone)
+
+bus_weekend_sd <- bus_weekend_arrivals %>%
+  filter(YEAR_MONTH < 202206)
+
+bus_weekend_non <- bus_weekend_arrivals %>%
+  filter(YEAR_MONTH >= 202206)
+
+write_csv(
+  bus_weekend_sd,
+  here("data", "processed", "bus_weekend_arrivals_sd_control.csv")
+)
+
+write_csv(
+  bus_weekend_non,
+  here("data", "processed", "bus_weekend_arrivals_non_control.csv")
+)
+```
+
+
+```{r}
 total_bus <- od %>%
   filter(
     MODE == "bus",

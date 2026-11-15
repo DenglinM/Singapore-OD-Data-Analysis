@@ -115,7 +115,7 @@ read_sf(
 read_sf(here('data', 'raw', 'spatial', 'MasterPlan2019RailLinelayer.geojson')) -> m_rail
 
 read_csv(
-  here('data', 'raw', 'train_station_codes_2026.csv')
+  here('data', 'raw','spatial', 'train_station_codes_2026.csv')
   ) -> station_lookup
 ```
 
