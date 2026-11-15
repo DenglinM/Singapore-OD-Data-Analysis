@@ -11,33 +11,19 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r libraries, message=FALSE, warning=FALSE}
 library(tidyverse)
-library(scales)
-library(patchwork)
 library(sf)
-library(RColorBrewer)
-library(kableExtra)
-library(here)
 library(arrow)
-library(osmdata)
+library(here)
 
 source(here("R", "od_io.R"))
 ```
 
 ```{r build-od-parquet}
-# The raw OD CSVs are far larger than memory (bus: ~18 GB in total), so we do
-# not load them all at once. Instead, every monthly CSV in data/raw/OD/ is
-# converted once into a Parquet dataset in data/processed/od_parquet/
-# (about 8x smaller on disk). Months already converted are skipped, so this
-# chunk is slow only the first time and after new months are downloaded.
 build_od_parquet()
-
-od  <- open_od() # lazy: nothing is read into memory yet
+od <- open_od()
 ```
 
 ```{r load-od-2020}
-# Filter first, then collect() only the rows you need. MODE is "train" or
-# "bus"; YYYYMM is an integer such as 202001. Bus stop codes stay as text, so
-# leading zeros (e.g. "01012") are kept for joining with spatial data.
 dfB23 <- c(202303, 202306, 202309, 202312)
 dfB24 <- c(202403, 202406, 202409, 202412)
 dfB25 <- c(202503, 202506, 202509, 202512)
@@ -229,12 +215,29 @@ trip_distance_summary <- total_bus %>%
 ```
 
 ```{r}
-weekend_attraction <- total_bus %>%
+weekend_attraction_bus <- total_bus %>%
   filter(DAY_TYPE == "WEEKENDS/HOLIDAY") %>%
   inner_join(dict_hub_stop, by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM")) %>%
-  filter(zone %in% c("Jurong East", "Tampines", "Woodlands")) %>%
+  filter(zone %in% c("Jurong East", "Tampines", "Woodlands", "CBD")) %>%
   group_by(YEAR_MONTH, zone) %>%
-  summarise(weekend_arrivals = sum(TOTAL_TRIPS), .groups = "drop")
+  summarise(
+    weekend_arrivals = sum(TOTAL_TRIPS), 
+    .groups = "drop"
+    )
+
+weekend_attraction_bus <- weekend_attraction_bus %>% 
+  group_by(YEAR_MONTH) %>% 
+  mutate(
+    total_hub_arrivals = sum(weekend_arrivals),
+    arrival_share = (weekend_arrivals / total_hub_arrivals)
+  )
+```
+
+```{r}
+write_csv(
+  weekend_attraction_bus, 
+  here("data", "processed", "weekend_attraction_bus.csv")
+)
 ```
 
 
