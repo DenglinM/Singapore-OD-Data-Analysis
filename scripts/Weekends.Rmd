@@ -19,10 +19,16 @@ library(kableExtra)
 library(here)
 library(arrow)
 library(osmextract)
+
+sf_use_s2(FALSE)
 ```
 
 ```{r}
 subzone <- read_sf(here("data", "raw", "MasterPlan2019SubzoneBoundaryNoSeaGEOJSON.geojson"))
+
+land_use_raw <- st_read(here("data", "raw", "AmendmenttoMasterPlan2019LandUselayer.geojson"))
+
+pbf_file <- here("data", "raw", "malaysia-singapore-brunei-261113.osm.pbf")
 
 area_center <- c("PHILLIP", "RAFFLES PLACE", "BAYFRONT SUBZONE", "NICOLL", "ANSON", "TANJONG PAGAR", "MAXWELL", "CECIL", "CENTRAL SUBZONE", "BUGIS", "MARINA CENTRE", "CITY HALL")
 area_jurong <- c("JURONG GATEWAY", "INTERNATIONAL BUSINESS PARK", "LAKESIDE (LEISURE)", "LAKESIDE (BUSINESS)" )
@@ -68,51 +74,59 @@ woodlands_sf <- hubs_4326 %>%
 woodlands_bbox <- st_bbox(woodlands_sf)
 ```
 
-```{r}
+```{r warning=FALSE}
 interested_features <- list(
-  "amenity" = c("bar", "biergarten", "pub", "restaurant", "cafe", "fast_food", 
-                "food_court", "cinema", "theatre", "community_centre", "library", "nightclub"),
-  "shop" = c("mall", "supermarket", "department_store"),
-  "leisure" = c("park", "sports_centre", "fitness_centre", "playground")
+  "amenity" = c(
+    "bar", "biergarten", "pub", "nightclub",
+    "restaurant", "cafe", "fast_food", "food_court",
+    "cinema", "theatre", "arts_centre", "community_centre", "library"
+  ),
+  "shop" = c(
+    "mall", "department_store", "clothes", "fashion", "shoes", "books", "electronics",
+    "supermarket", "convenience", "bakery", "butcher", "greengrocer"
+  ),
+  "leisure" = c(
+    "park", "sports_centre", "fitness_centre", "playground"
+  )
 )
 
-jurong_raw <- opq(bbox = jurong_bbox) %>% 
-  add_osm_features(features = interested_features) %>% 
-  osmdata_sf()
+raw_points <- oe_read(
+  file_path = pbf_file,
+  layer = "points",
+  extra_tags = c("amenity", "shop", "leisure"),
+  quiet = TRUE
+)
 
-poi_jurong <- jurong_raw$osm_points %>% 
-  st_intersection(jurong_sf) %>% 
-  filter(!is.na(amenity) | !is.na(shop) | !is.na(leisure)) %>%
-  mutate(hub = "Jurong East")
+raw_polygons <- oe_read(
+  file_path = pbf_file,
+  layer = "multipolygons",
+  extra_tags = c("amenity", "shop", "leisure"),
+  quiet = TRUE
+) %>%
+  st_centroid(quiet = TRUE)
 
-Sys.sleep(2)
+poi_collection <- bind_rows(raw_points, raw_polygons) %>%
+  filter(
+    amenity %in% interested_features$amenity |
+    shop %in% interested_features$shop |
+    leisure %in% interested_features$leisure
+  ) %>% 
+  st_transform(4326) %>%
+  distinct(osm_id, .keep_all = TRUE)
+```
 
-tampines_raw <- opq(bbox = tampines_bbox) %>% 
-  add_osm_features(features = interested_features) %>% 
-  osmdata_sf()
+```{r message=FALSE, warning=FALSE}
+poi_collection_hubs <- poi_collection %>%
+  st_intersection(hubs_4326 %>% select(PLN_AREA_N)) %>%
+  mutate(hub = str_to_title(PLN_AREA_N)) %>%
+  select(-PLN_AREA_N)
 
-poi_tampines <- tampines_raw$osm_points %>% 
-  st_intersection(tampines_sf) %>% 
-  filter(!is.na(amenity) | !is.na(shop) | !is.na(leisure)) %>%
-  mutate(hub = "Tampines")
-
-woodlands_raw <- opq(bbox = woodlands_bbox) %>% 
-  add_osm_features(features = interested_features) %>% 
-  osmdata_sf()
-
-poi_woodlands <- woodlands_raw$osm_points %>% 
-  st_intersection(woodlands_sf) %>% 
-  filter(!is.na(amenity) | !is.na(shop) | !is.na(leisure)) %>%
-  mutate(hub = "Woodlands")
+poi_collection_hubs <- poi_collection_hubs %>% 
+  select(name, amenity, shop, leisure, hub, geometry)
 ```
 
 ```{r}
-poi_collection <- bind_rows(poi_jurong, poi_tampines, poi_woodlands)
-rm(poi_jurong, poi_tampines, poi_woodlands)
-```
-
-```{r}
-pois_classified <- poi_collection %>%
+pois_classified <- poi_collection_hubs %>%
   mutate(
     poi_category = case_when(
       amenity %in% c("bar", "biergarten", "pub", "nightclub") ~ "Nightlife",
@@ -126,10 +140,48 @@ pois_classified <- poi_collection %>%
       )
     ) %>% 
   filter(poi_category != "Other") %>% 
-  select(poi_category, geometry, hub, name) %>% 
+  select(
+    poi_category, 
+    geometry, hub, name
+    ) %>% 
   arrange(poi_category)
+
+poi_counts <- pois_classified %>%
+  st_drop_geometry() %>%
+  group_by(hub, poi_category) %>%
+  summarise(
+    count = n(), 
+    .groups = "drop"
+    )
 ```
 
+```{r}
+hub_areas <- hubs_4326 %>% 
+  st_transform(3414) %>% 
+  group_by(PLN_AREA_N) %>% 
+  summarise(
+    geometry = st_union(geometry), 
+    .groups = "drop"
+    ) %>% 
+  mutate(
+    area_km2 = as.numeric(st_area(geometry)) / 1000000,
+    hub = str_to_title(PLN_AREA_N)
+  ) %>% 
+  st_drop_geometry()
+
+poi_density <- poi_counts %>%
+  left_join(hub_areas, by = "hub") %>%
+  mutate(
+    density_per_km2 = count / area_km2
+  )
+```
+
+
+```{r}
+land_use_3414 <- land_use_raw %>%
+  st_make_valid() %>% 
+  st_transform(3414)
+```
 
 
 
