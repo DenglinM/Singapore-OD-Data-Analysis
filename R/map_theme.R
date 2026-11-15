@@ -31,50 +31,16 @@ shed_labels  <- c("Core (0-25 %)", "Strong (25-50 %)", "Weak (50-75 %)",
                   "Peripheral (75-100 %)")
 mode_label   <- c(train = "MRT/LRT", bus = "Bus")
 
-# MRT lines (official LTA colours). The Thomson-East Coast Line opened in
-# stages (2020-2024); leave it out of maps for the 2021-2022 periods with
-# make_mrt_lines(..., lines = mrt_lines_pre2024).
-mrt_line_colours <- c("North South Line" = "#D42E12", "East West Line"  = "#009645",
+# MRT lines (official LTA colours). Thomson-East Coast Line is left out on
+# purpose: it opened in stages (2020-2024), so most of it did not exist in the
+# 2021-2022 study periods. Add "Thomson-East Coast Line" = "#9D5B25" for 2024+.
+mrt_line_names <- c(NS = "North South Line", EW = "East West Line",
+                    NE = "North East Line",  CC = "Circle Line",
+                    DT = "Downtown Line",    TE = "Thomson-East Coast Line")
+mrt_line_colours <- c("North South Line" = "#D42E12", "East West Line" = "#009645",
                       "Downtown Line"    = "#005EC4", "North East Line" = "#9900AA",
-                      "Circle Line"      = "#FA9E0D",
-                      "Thomson-East Coast Line" = "#9D5B25")
-mrt_lines_pre2024 <- setdiff(names(mrt_line_colours), "Thomson-East Coast Line")
+                      "Circle Line"      = "#FA9E0D")
 
-# ---- make_mrt_lines(): rail track coloured by MRT line -----------------------
-# The Master Plan rail layer has no line names, so each line is first drawn
-# schematically by joining its stations in code order (NS1, NS2 ...), and every
-# real track segment then takes the name of the nearest schematic line.
-#   rail           Master Plan 2019 rail line layer (RAIL_TYPE column)
-#   station_codes  table with stn_code and station_name (upper case)
-#   stations       sf points with station_name (e.g. centroids of station exits)
-#   lines          which lines to keep, e.g. mrt_lines_pre2024
-# Returns sf lines with a `line` column, ready for sg_map(mrt_lines = ...).
-make_mrt_lines <- function(rail, station_codes, stations,
-                           lines = names(mrt_line_colours)) {
-  prefix_line <- c(NS = "North South Line", EW = "East West Line",
-                   CG = "East West Line",   NE = "North East Line",
-                   CC = "Circle Line",      CE = "Circle Line",
-                   DT = "Downtown Line",    TE = "Thomson-East Coast Line")
-
-  schematic <- station_codes |>
-    dplyr::mutate(prefix = stringr::str_extract(stn_code, "^[A-Z]+"),
-                  num    = as.numeric(stringr::str_extract(stn_code, "\\d+")) +
-                    ifelse(grepl("A$", stn_code), 0.5, 0)) |>
-    dplyr::filter(prefix %in% names(prefix_line)) |>
-    dplyr::mutate(line = unname(prefix_line[prefix])) |>
-    dplyr::inner_join(sf::st_transform(stations, 3414), by = "station_name") |>
-    sf::st_as_sf() |>
-    dplyr::arrange(prefix, num) |>
-    dplyr::group_by(line, prefix) |>        # main lines and branches separately
-    dplyr::filter(dplyr::n() >= 2) |>
-    dplyr::summarise(do_union = FALSE, .groups = "drop") |>
-    sf::st_cast("LINESTRING")
-
-  rail <- sf::st_transform(rail, 3414)
-  rail <- rail[rail$RAIL_TYPE == "MRT", ]
-  rail$line <- schematic$line[sf::st_nearest_feature(rail, schematic)]
-  rail[rail$line %in% lines, "line"]
-}
 # ggspatial (scale bar, north arrow) is optional: maps still work without it
 has_ggspatial <- requireNamespace("ggspatial", quietly = TRUE)
 
