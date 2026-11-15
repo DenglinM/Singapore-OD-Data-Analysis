@@ -31,10 +31,6 @@ area_tampines <- c("TAMPINES NORTH", "TAMPINES WEST", "TAMPINES EAST")
 ```
 
 ```{r}
-hub_center <- subzone %>%
-  filter(SUBZONE_N %in% area_center) %>% 
-  select(-REGION_N, -REGION_C, -SUBZONE_NO)
-
 hub_jurong <- subzone %>%
   filter(SUBZONE_N %in% area_jurong) %>% 
   select(-REGION_N, -REGION_C, -SUBZONE_NO)
@@ -47,16 +43,92 @@ hub_woodlands <- subzone %>%
   filter(SUBZONE_N %in% area_woodlands) %>% 
   select(-REGION_N, -REGION_C, -SUBZONE_NO)
 
-hubs <- bind_rows(hub_center, hub_jurong, hub_tampines, hub_woodlands)
+hubs <- bind_rows(hub_jurong, hub_tampines, hub_woodlands)
 
-rm(hub_center, hub_jurong, hub_tampines, hub_woodlands)
+hubs_4326 <- hubs %>% 
+  st_transform(4326)
+
+rm(hub_jurong, hub_tampines, hub_woodlands)
 ```
 
 ```{r}
+jurong_sf <- hubs_4326 %>% 
+  filter(PLN_AREA_N == "JURONG EAST") %>% 
+  summarise(geometry = st_union(geometry))
+jurong_bbox <- st_bbox(jurong_sf)
 
+tampines_sf <- hubs_4326 %>% 
+  filter(PLN_AREA_N == "TAMPINES") %>% 
+  summarise(geometry = st_union(geometry))
+tampines_bbox <- st_bbox(tampines_sf)
+
+woodlands_sf <- hubs_4326 %>% 
+  filter(PLN_AREA_N == "WOODLANDS") %>% 
+  summarise(geometry = st_union(geometry))
+woodlands_bbox <- st_bbox(woodlands_sf)
 ```
 
+```{r}
+interested_features <- list(
+  "amenity" = c("bar", "biergarten", "pub", "restaurant", "cafe", "fast_food", 
+                "food_court", "cinema", "theatre", "community_centre", "library", "nightclub"),
+  "shop" = c("mall", "supermarket", "department_store"),
+  "leisure" = c("park", "sports_centre", "fitness_centre", "playground")
+)
 
+jurong_raw <- opq(bbox = jurong_bbox) %>% 
+  add_osm_features(features = interested_features) %>% 
+  osmdata_sf()
+
+poi_jurong <- jurong_raw$osm_points %>% 
+  st_intersection(jurong_sf) %>% 
+  filter(!is.na(amenity) | !is.na(shop) | !is.na(leisure)) %>%
+  mutate(hub = "Jurong East")
+
+Sys.sleep(2)
+
+tampines_raw <- opq(bbox = tampines_bbox) %>% 
+  add_osm_features(features = interested_features) %>% 
+  osmdata_sf()
+
+poi_tampines <- tampines_raw$osm_points %>% 
+  st_intersection(tampines_sf) %>% 
+  filter(!is.na(amenity) | !is.na(shop) | !is.na(leisure)) %>%
+  mutate(hub = "Tampines")
+
+woodlands_raw <- opq(bbox = woodlands_bbox) %>% 
+  add_osm_features(features = interested_features) %>% 
+  osmdata_sf()
+
+poi_woodlands <- woodlands_raw$osm_points %>% 
+  st_intersection(woodlands_sf) %>% 
+  filter(!is.na(amenity) | !is.na(shop) | !is.na(leisure)) %>%
+  mutate(hub = "Woodlands")
+```
+
+```{r}
+poi_collection <- bind_rows(poi_jurong, poi_tampines, poi_woodlands)
+rm(poi_jurong, poi_tampines, poi_woodlands)
+```
+
+```{r}
+pois_classified <- poi_collection %>%
+  mutate(
+    poi_category = case_when(
+      amenity %in% c("bar", "biergarten", "pub", "nightclub") ~ "Nightlife",
+      amenity %in% c("restaurant", "cafe", "fast_food", "food_court") ~ "Dining",
+      amenity %in% c("cinema", "theatre", "arts_centre") | 
+        leisure %in% c("park", "sports_centre", "fitness_centre", "playground") ~ "Family_Leisure",
+      shop %in% c("mall", "department_store", "clothes", "fashion", "shoes", "books", "electronics") ~ "Retail_Shopping",
+      shop %in% c("supermarket", "convenience", "bakery", "butcher", "greengrocer") ~ "Daily_Needs",
+      amenity %in% c("community_centre", "library") ~ "Community",
+      TRUE ~ "Other"
+      )
+    ) %>% 
+  filter(poi_category != "Other") %>% 
+  select(poi_category, geometry, hub, name) %>% 
+  arrange(poi_category)
+```
 
 
 
