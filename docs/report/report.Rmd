@@ -1,8 +1,26 @@
 ---
 title: "Have Singapore's Regional Centres Reduced Reliance on the CBD? Evidence from MRT and Bus Origin-Destination Data"
 author: "[Member 1], [Member 2], [Member 3], [Member 4], [Member 5]"
-date: "`r format(Sys.Date(), '%d %B %Y')`"
+date: "15 November 2026"
+geometry: margin=2.2cm
+fontsize: 11pt
+mainfont: Times New Roman   # same font as the tables (table_theme.R)
+header-includes:
+  - \usepackage{float}
+  - \floatplacement{figure}{!htb}
+  - \usepackage{booktabs}
+  - \usepackage{threeparttable}
+  - \floatplacement{table}{!htb}
+  - \usepackage{caption}
+  - \captionsetup{font=small, labelfont=bf}
+  - \usepackage{tocloft}
+  - \setlength{\cftbeforesecskip}{2pt}
 output:
+  pdf_document:
+    toc: true
+    toc_depth: 1
+    latex_engine: xelatex
+    fig_caption: true
   word_document:
     toc: false
     fig_caption: true
@@ -34,10 +52,42 @@ FIRST DRAFT. To be reviewed and edited by the group before submission.
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
-                      out.width = "100%", fig.align = "center", dpi = 300)
+                      out.width = "90%", fig.align = "center", fig.pos = "!htb", dpi = 300)
 library(dplyr)
 source(here::here("R", "save_fig.R"))
 source(here::here("R", "table_theme.R"))   # stylized_table() three-line tables
+
+# report_table(): one call for every table in the report.
+# - PDF: booktabs three-line table (kableExtra), kept in the text width and
+#   placed close to where it is called; never split or overflowing.
+# - Word/HTML: the group's flextable style (stylized_table() in R/table_theme.R).
+# `df` must already have display column names; `group` = first column whose
+# repeated values are merged.
+report_table <- function(df, title, note = NULL, digits = 2, group = TRUE) {
+  if (knitr::is_latex_output()) {
+    df <- as.data.frame(df)
+    if (group) df[[1]] <- ifelse(duplicated(df[[1]]), "", as.character(df[[1]]))
+    tab <- kableExtra::kbl(df, format = "latex", booktabs = TRUE, digits = digits,
+                           caption = title, linesep = "",
+                           align = c("l", "l", rep("r", ncol(df) - 2))) |>
+      kableExtra::kable_styling(latex_options = c("hold_position", "scale_down"),
+                                font_size = 9)
+    if (!is.null(note)) {
+      tab <- kableExtra::footnote(tab, general = note, general_title = "",
+                                  threeparttable = TRUE, escape = TRUE)
+    }
+    tab
+  } else {
+    df <- as.data.frame(df)
+    first <- names(df)[1]
+    if (group) {
+      rlang::inject(stylized_table(df, group = !!rlang::sym(first), digits = digits,
+                                   width = 6.4, title = title, note = note))
+    } else {
+      stylized_table(df, digits = digits, width = 6.4, title = title, note = note)
+    }
+  }
+}
 ```
 
 # Abstract {-}
@@ -80,7 +130,7 @@ We use the following datasets (sources and licences are listed in the References
 
 The study is organised around two COVID-19 phases, following Hou et al. (2025): the **SD control** period up to March 2022 and the **non-control** period from June 2022 to September 2026. Because of the sampling, the MRT analysis covers 5 SD-control months (March 2021 to March 2022) and 18 non-control months, and the bus analysis covers 9 SD-control months (March 2020 to March 2022) and the same 18 non-control months. Indicators are averaged over the months in each phase.
 
-```{r fig-study-area, fig.cap = "Figure 1. Study area: the CBD and the three regional centres (Jurong Lake District, Tampines, Woodlands), defined as groups of URA subzones, with MRT lines."}
+```{r fig-study-area, fig.cap = "Study area: the CBD and the three regional centres (Jurong Lake District, Tampines, Woodlands), defined as groups of URA subzones, with MRT lines.", out.width = "75%"}
 show_fig("study_area_map")
 ```
 
@@ -109,6 +159,7 @@ All analysis was carried out in R with `tidyverse`, `sf`, `arrow`, `patchwork` a
 
 ## MRT/LRT: trip indicators
 
+
 ```{r tab-mrt}
 mrt <- read_tab("mrt_indicator_means")
 if (is.null(mrt)) {
@@ -116,17 +167,15 @@ if (is.null(mrt)) {
 } else {
   mrt |>
     filter(period == "AM peak") |>
-    mutate(zone = recode(as.character(zone), "Jurong East" = "Jurong Lake District"),
-           attraction        = attraction * 100,
-           cbd_outflow_share = cbd_outflow_share * 100) |>
-    stylized_table(
-      cols   = c(Phase = covid_phase, Centre = zone,
-                 `Attraction (%)` = attraction, `In/out ratio` = in_out_ratio,
-                 `CBD outflow (%)` = cbd_outflow_share,
-                 `Mean distance (km)` = mean_dist_km),
-      group  = Phase, digits = 2,
-      title  = "Table 1. MRT/LRT indicators by centre, weekday AM peak (monthly means).",
-      note   = "Source: LTA DataMall passenger volume by OD (train); 5 SD-control and 18 non-control months. CBD outflow share is not defined for the CBD.")
+    transmute(Phase = as.character(covid_phase),
+              Centre = recode(as.character(zone), "Jurong East" = "Jurong Lake District"),
+              `Attraction (%)` = attraction * 100,
+              `In/out ratio` = in_out_ratio,
+              `CBD outflow (%)` = cbd_outflow_share * 100,
+              `Mean distance (km)` = mean_dist_km) |>
+    report_table(
+      title = "MRT/LRT indicators by centre, weekday AM peak (monthly means).",
+      note  = "Source: LTA DataMall passenger volume by OD (train); 5 SD-control and 18 non-control months. CBD outflow share is not defined for the CBD.")
 }
 ```
 
@@ -136,17 +185,17 @@ The change between phases points to recentralisation rather than decentralisatio
 
 ## MRT/LRT: service sheds and overlap
 
-```{r fig-mrt-shed-sd, fig.cap = "Figure 2. MRT/LRT service sheds of the four centres, weekday AM peak, SD control period (5 months).", out.width = "85%"}
+```{r fig-mrt-shed-sd, fig.cap = "MRT/LRT service sheds of the four centres, weekday AM peak, SD control period (5 months).", out.width = "85%"}
 show_fig("shed_sd_control_am_peak")
 ```
 
-```{r fig-mrt-shed-non, fig.cap = "Figure 3. MRT/LRT service sheds of the four centres, weekday AM peak, non-control period (18 months).", out.width = "85%"}
+```{r fig-mrt-shed-non, fig.cap = "MRT/LRT service sheds of the four centres, weekday AM peak, non-control period (18 months).", out.width = "85%"}
 show_fig("shed_non_control_am_peak")
 ```
 
 Figures 2 and 3 map the AM-peak service sheds. The CBD's core and strong subzones are scattered across the island, along the North South Line in the north (Woodlands, Yishun), the East West Line in the east (Tampines, Bedok, Pasir Ris) and pockets in the west. Its catchment is island-wide rather than regional. [CHECK subzone names against the maps.] The regional centres have more compact sheds. Tampines draws its core subzones from the adjacent eastern estates within about 5 km. Woodlands' principal shed follows the North South Line loop through the north. Jurong Lake District's principal shed stretches north along the North South Line towards Choa Chu Kang and Woodlands, reflecting its role as an employment node for the northwest. Between the two phases the CBD's core shed becomes larger and more concentrated in the east [CHECK], while the regional centres' sheds change little in shape.
 
-```{r fig-mrt-overlap, fig.cap = "Figure 4. Overlap of MRT/LRT principal service sheds, weekday AM peak: (A) SD control, (B) non-control. Read by column; the diagonal is self-containment.", out.width = "90%"}
+```{r fig-mrt-overlap, fig.cap = "Overlap of MRT/LRT principal service sheds, weekday AM peak: (A) SD control, (B) non-control. Read by column; the diagonal is self-containment.", out.width = "90%"}
 show_fig("overlap_am_peak")
 ```
 
@@ -154,33 +203,34 @@ The overlap matrices (Figure 4) quantify how far the hinterlands of the regional
 
 ## Bus: trip indicators, service sheds and overlap
 
+
 ```{r tab-bus}
 bus <- read_tab("bus_indicator_means")
 if (is.null(bus)) {
   missing_note("outputs/tables/bus_indicator_means.rds")
 } else {
   bus |>
+    mutate(across(c(zone, Period), as.character)) |>
     rename(Centre = zone) |>
-    stylized_table(
-      group = Centre, digits = 2,
-      title = "Table 2. Bus indicators by centre, weekday AM peak (monthly means).",
+    report_table(
+      title = "Bus indicators by centre, weekday AM peak (monthly means).",
       note  = "Source: LTA DataMall passenger volume by OD (bus); 9 SD-control and 18 non-control months. Arrivals include trips that start inside the centre.")
 }
 ```
 
 `Bus_SDand_After SD.Rmd` repeats the analysis for buses, which mostly carry short feeder and local trips. The bus indicators (Table 2) tell a different story from the MRT. Tampines is the strongest bus destination, receiving about 4.7–4.9% of island-wide AM-peak bus trips, far more than the CBD (1.1–1.7%). Woodlands' bus attraction rose from 1.8% to 3.2% between the phases, the largest change among the centres [CHECK: possibly linked to the opening of the Thomson-East Coast Line stations and the bus interchange in Woodlands]. Bus trips into the regional centres are short (2.0–3.1 km on average), and almost none of the bus trips leaving the regional centres go to the CBD (under 0.4%). By bus, the regional centres function as local hubs, and long trips to the CBD are made by rail. Jurong Lake District is again a net bus destination (in/out ratio 1.37, then 1.65). The CBD's bus in/out ratio rose from 2.9 to 4.0, which mirrors the MRT recovery of CBD commuting.
 
-```{r fig-bus-shed-sd, fig.cap = "Figure 5. Bus service sheds of the four centres, weekday AM peak, SD control period (9 months).", out.width = "85%"}
+```{r fig-bus-shed-sd, fig.cap = "Bus service sheds of the four centres, weekday AM peak, SD control period (9 months).", out.width = "85%"}
 show_fig("bus_shed_sd_control_am_peak")
 ```
 
-```{r fig-bus-shed-non, fig.cap = "Figure 6. Bus service sheds of the four centres, weekday AM peak, non-control period (18 months).", out.width = "85%"}
+```{r fig-bus-shed-non, fig.cap = "Bus service sheds of the four centres, weekday AM peak, non-control period (18 months).", out.width = "85%"}
 show_fig("bus_shed_non_control_am_peak")
 ```
 
 The bus service sheds (Figures 5 and 6) are strikingly compact. For each regional centre, the core and strong subzones lie within about 5 km of the centre, and most of the island is peripheral. The CBD's bus shed is larger and lies mainly in the city fringe and the inner east (for example along the Geylang–Kallang corridor) [CHECK], but it is still far more local than its MRT shed.
 
-```{r fig-bus-overlap, fig.cap = "Figure 7. Overlap of bus principal service sheds, weekday AM peak: (a) SD control, (b) non-control.", out.width = "90%"}
+```{r fig-bus-overlap, fig.cap = "Overlap of bus principal service sheds, weekday AM peak: (a) SD control, (b) non-control.", out.width = "90%"}
 show_fig("bus_overlap_am_peak")
 ```
 
@@ -188,7 +238,7 @@ Consistent with this, the bus principal sheds do not overlap at all (Figure 7). 
 
 ## Weekend travel, land use and amenities
 
-```{r fig-weekend, fig.cap = "Figure 8. Weekend functional attractiveness of the regional centres: (a) POI count and (b) POI density by category (OpenStreetMap), (c) land-use composition (URA Master Plan 2019), (d) weekend public transport attraction share, SD control vs non-control."}
+```{r fig-weekend, fig.cap = "Weekend functional attractiveness of the regional centres: (a) POI count and (b) POI density by category (OpenStreetMap), (c) land-use composition (URA Master Plan 2019), (d) weekend public transport attraction share, SD control vs non-control."}
 show_fig("weekend_composite")
 ```
 
@@ -238,29 +288,26 @@ Zhong, C., Arisona, S. M., Huang, X., Batty, M., & Schmitt, G. (2014). Detecting
 
 # Appendix {-}
 
+
 ```{r tab-mrt-all}
 if (!is.null(mrt)) {
   mrt |>
     filter(period != "AM peak") |>
-    mutate(zone = recode(as.character(zone), "Jurong East" = "Jurong Lake District"),
-           attraction        = attraction * 100,
-           cbd_outflow_share = cbd_outflow_share * 100,
-           group = paste(covid_phase, period, sep = " | ")) |>
-    stylized_table(
-      cols   = c(group, Centre = zone,
-                 `Attraction (%)` = attraction, `In/out ratio` = in_out_ratio,
-                 `CBD outflow (%)` = cbd_outflow_share,
-                 `Mean distance (km)` = mean_dist_km),
-      labels = c(group = "Phase | period"),
-      group  = group, digits = 2,
-      title  = "Table A2. MRT/LRT indicators for the PM peak, weekday off-peak and weekend/holiday periods.")
+    transmute(`Phase | period` = paste(covid_phase, period, sep = " | "),
+              Centre = recode(as.character(zone), "Jurong East" = "Jurong Lake District"),
+              `Attraction (%)` = attraction * 100,
+              `In/out ratio` = in_out_ratio,
+              `CBD outflow (%)` = cbd_outflow_share * 100,
+              `Mean distance (km)` = mean_dist_km) |>
+    report_table(
+      title = "MRT/LRT indicators for the PM peak, weekday off-peak and weekend/holiday periods.")
 }
 ```
 
-```{r fig-appendix-weekend, fig.cap = "Figure A1. MRT/LRT service sheds, weekends and holidays, non-control period."}
+```{r fig-appendix-weekend, fig.cap = "MRT/LRT service sheds, weekends and holidays, non-control period."}
 show_fig("shed_non_control_weekend")
 ```
 
-```{r fig-appendix-overlap-weekend, fig.cap = "Figure A2. Overlap of MRT/LRT principal service sheds, weekends and holidays.", out.width = "90%"}
+```{r fig-appendix-overlap-weekend, fig.cap = "Overlap of MRT/LRT principal service sheds, weekends and holidays.", out.width = "90%"}
 show_fig("overlap_weekend")
 ```
