@@ -14,9 +14,9 @@ output:
 
 <!--
 =============================================================================
-HOW THIS REPORT IS BUILT
-- This file does NO analysis. It only embeds the figures (outputs/figures/*.png)
-  and small tables (outputs/tables/*.rds) saved by the analysis Rmds:
+FIRST DRAFT. To be reviewed and edited by the group before submission.
+- This file runs no analysis. It embeds the figures (outputs/figures/*.png)
+  and tables (outputs/tables/*.rds) saved by:
     scripts/study_area_map.Rmd        -> study_area_map.png
     scripts/Train_all.Rmd             -> shed_<phase>_<period>.png,
                                          overlap_<period>.png,
@@ -25,18 +25,14 @@ HOW THIS REPORT IS BUILT
                                          bus_overlap_am_peak.png,
                                          bus_indicator_means.rds
     scripts/Weekends.Rmd              -> weekend_composite.png
-- Run (knit) those four Rmds first, then knit this file.
-- Submission must be ONE PDF: knit to Word, check layout, then
-  File > Save As > PDF. Limit: 10 pages (put extra maps in the Appendix).
-- A missing file shows "[Missing: ...]" instead of breaking the knit.
-- Text in [square brackets] and the WRITING GUIDE comments are for the
-  group to replace. The brief requires that you write the text yourselves
-  and add an AI-use statement at the end.
+- Submission: knit to Word, check layout, File > Save As > PDF (max 10 pages;
+  the Appendix may go beyond).
+- Items marked [CHECK] need the group's verification (numbers read off a
+  figure, references to confirm). Items in [square brackets] must be filled.
 =============================================================================
 -->
 
 ```{r setup, include = FALSE}
-# echo/message/warning off: the brief asks for no clutter in the report
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
                       out.width = "100%", fig.align = "center", dpi = 300)
 library(dplyr)
@@ -46,73 +42,43 @@ source(here::here("R", "table_theme.R"))   # stylized_table() three-line tables
 
 # Abstract {-}
 
-<!-- WRITING GUIDE (150-200 words): context (decentralisation policy) ->
-question -> data (LTA OD, MRT + bus, 2020-2026; URA land use; OSM POIs) ->
-method (service sheds, overlap, four indicators, SD-control vs non-control)
--> 2-3 key numbers from the results -> one-sentence conclusion. Write it last. -->
-
-[Abstract]
+Singapore has pursued a polycentric strategy for over three decades, designating Jurong Lake District, Tampines and Woodlands as regional centres intended to bring jobs and services closer to homes and to relieve the Central Business District (CBD). This study asks whether these centres attract and retain trips within their own regions, and how their role changed between the COVID-19 safe-distancing (SD) control period and the period after restrictions were lifted. Using LTA DataMall origin-destination (OD) passenger volumes for MRT/LRT and buses (sampled months, 2020–2026), joined to URA Master Plan 2019 subzones and land use and to OpenStreetMap points of interest, we compute four trip indicators, delineate the service sheds of each centre following Hou et al. (2025), and measure how much the centres' principal sheds overlap. The CBD remains dominant and strengthened after restrictions ended: its share of island-wide weekday AM-peak MRT trips rose from 10.3% to 15.9%, and the share of MRT trips leaving each regional centre for the CBD increased in all three centres. Jurong Lake District is the only regional centre that is a net MRT destination in the morning peak. Bus sheds, in contrast, are short-range and fully exclusive to each centre. On weekends, Tampines, which has the densest amenities and the most residential land, is the strongest bus destination. The results suggest that the regional centres function as local service hubs rather than as employment counterweights to the CBD.
 
 **Keywords:** origin-destination data; polycentric city; regional centres; service shed; COVID-19; Singapore
 
 # Introduction
 
-<!-- WRITING GUIDE
-- Singapore's Concept Plan / Master Plan decentralisation strategy: regional
-  centres at Jurong East (Jurong Lake District), Tampines and Woodlands, meant
-  to bring jobs closer to homes and reduce long commutes to the CBD.
-- Why it matters: congestion on radial MRT lines, travel time, planning goals.
-- Research question (state it explicitly, e.g. "To what extent do the three
-  regional centres attract and retain trips within their own regions, and how
-  did this change between the safe-distancing (SD) control period and the
-  post-control period?").
-- Contribution: MRT + bus, two COVID phases, linked to land use and amenities.
-- One sentence on the structure of the paper. -->
+Since the 1991 Concept Plan, Singapore's long-term land-use strategy has sought to decentralise economic activity away from the Central Area. Regional centres in the west (Jurong East, now Jurong Lake District), east (Tampines) and north (Woodlands) were planned as second-tier employment and commercial nodes, each serving its surrounding housing estates. The expected benefits are shorter commutes, lower pressure on the radial MRT lines that converge on the CBD, and more balanced use of transport capacity in both directions. Whether these benefits have materialised is an empirical question, and one that public transport OD data are well placed to answer, because they record where trips begin and end at the level of individual stations and bus stops.
 
-[Introduction]
+The COVID-19 pandemic adds a second dimension. During the safe-distancing (SD) control period, working from home and capacity limits sharply reduced commuting to the CBD. A popular expectation was that some of this activity would permanently shift towards decentralised, closer-to-home locations. If so, the regional centres should have gained in relative importance after restrictions were lifted.
+
+This paper addresses the following research question:
+
+> **To what extent do Singapore's three regional centres attract and retain public transport trips within their own regions, and did their role relative to the CBD change between the SD control period and the post-control period?**
+
+We answer it with three complementary analyses, each implemented in a separate R Markdown script: (1) trip indicators and service sheds for the MRT/LRT network (`Train_all.Rmd`); (2) the same analysis for buses (`Bus_SDand_After SD.Rmd`); and (3) a weekend analysis that links travel to land use and amenities (`Weekends.Rmd`). The remainder of the paper reviews related work, describes the data and methods, presents the results, and discusses their implications and limitations.
 
 # Literature review
 
-<!-- WRITING GUIDE
-- OD / smart-card data for urban structure and polycentricity (state of the art).
-- Studies of Singapore's regional centres and decentralisation.
-- Hou et al. (2025): the service-shed (core / strong / weak / peripheral)
-  and principal-shed overlap method that this study replicates - say clearly
-  what you replicate and what you add (bus mode, newer months, land use, POIs).
-- COVID-19 impacts on travel patterns.
-- Research gap that motivates the question. Cite every paper (see References). -->
+<!-- [CHECK] Extend with the papers the group has read; verify every reference before submission. -->
 
-[Literature review]
+Smart-card and OD data have become a standard source for analysing urban spatial structure. Roth et al. (2011) used London Oyster card data to show that urban movement is polycentric but hierarchically organised, with a few dominant centres and many smaller ones. Working on Singapore, Zhong et al. (2014) applied network analysis to smart-card trips and found that, despite planning efforts, the city's travel structure remained strongly centred on the Central Area, while some sub-centres gained in importance over time. These studies show that OD flows can reveal whether planned centres actually function as centres in daily travel.
+
+Hou et al. (2025) proposed a service-shed method for evaluating centres. For each centre, origin areas are ranked by the number of trips they send to it, and the cumulative share of trips defines core, strong, weak and peripheral sheds. The overlap of principal (core + strong) sheds between centres shows whether centres serve distinct hinterlands or compete for the same population. They also compared the periods before and after COVID-19 safe-distancing measures. Our study replicates this framework for Singapore's regional centres, extends it to the bus network, uses more recent data (up to September 2026), and adds land-use and amenity data to interpret differences between centres.
+
+Research on COVID-19 and mobility has documented large drops in commuting during lockdowns and an uneven recovery afterwards, with central business districts recovering more slowly than residential neighbourhoods in many cities. Singapore offers a useful test case because its public transport mode share is high and its decentralisation policy is explicit. The research gap we address is the lack of a recent, multi-modal assessment of whether Singapore's regional centres have reduced reliance on the CBD, especially after the pandemic.
 
 # Data
 
-<!-- WRITING GUIDE: describe each dataset, its period, licence and quality
-issues (the brief checks this). Facts from the scripts are listed below as
-notes; turn them into prose or a table. -->
+We use the following datasets (sources and licences are listed in the References):
 
-[Data description]
+- **OD passenger volumes (LTA DataMall).** "Passenger volume by origin destination train stations" and "… bus stops" give monthly trip counts for each origin–destination pair by day type (weekday, weekend/holiday) and hour. To keep the data manageable (the raw bus files total about 18 GB), we sampled March, June, September and December of each year. We converted the CSVs once into a Parquet dataset and queried them lazily with `arrow` (`R/od_io.R`). Bus stop codes were read as text to keep leading zeros.
+- **URA Master Plan 2019 Subzone Boundary.** The 332 subzones are our spatial units. Each centre is defined as a group of subzones (Figure 1).
+- **URA Master Plan 2019 Land Use layer (amended).** We use it to describe the land-use mix of the regional centres. This is an additional dataset not listed in the assignment.
+- **OpenStreetMap points of interest** (Geofabrik extract read with `osmextract`). Dining, retail, daily needs, family leisure, community and nightlife POIs serve as a proxy for amenities. This is a second additional dataset.
+- **LTA MRT station exits, station codes and bus stop locations.** We used these to geolocate stations and stops. Station exits were merged into one centroid per station. Interchange codes such as "EW24/NS1" were split and matched to an official code list, and stations were assigned to subzones by spatial join.
 
-<!--
-NOTES FROM THE SCRIPTS (delete after writing):
-- LTA DataMall "Passenger volume by origin destination train stations" and
-  "... bus stops": monthly, by day type and hour. Sample months: March, June,
-  September, December. MRT 2021-03 to 2026-09 (Train_all.Rmd); bus 2020-03 to
-  2026-09 (Bus_SDand_After SD.Rmd), weekday 06:00-10:00 for bus.
-- Converted to Parquet (R/od_io.R) because the raw CSVs total ~20 GB; bus stop
-  codes read as text to keep leading zeros.
-- URA Master Plan 2019 Subzone Boundary (No Sea): centre definitions and
-  service-shed units.
-- URA Master Plan 2019 Land Use layer (amended): land-use mix of the centres
-  (additional dataset not listed in the brief).
-- OpenStreetMap points of interest via a Geofabrik extract (osmextract):
-  dining, retail, leisure, daily needs, community, nightlife (additional
-  dataset; ODbL licence).
-- LTA MRT station exits + official station code list: station locations,
-  joined to OD station codes (interchanges such as "EW24/NS1" split).
-- LTA bus stop locations (LTABusStop.geojson).
-- Licences: LTA DataMall and URA data under the Singapore Open Data Licence;
-  OSM under ODbL ("(c) OpenStreetMap contributors").
--->
+The study is organised around two COVID-19 phases, following Hou et al. (2025): the **SD control** period up to March 2022 and the **non-control** period from June 2022 to September 2026. Because of the sampling, the MRT analysis covers 5 SD-control months (March 2021 to March 2022) and 18 non-control months, and the bus analysis covers 9 SD-control months (March 2020 to March 2022) and the same 18 non-control months. Indicators are averaged over the months in each phase.
 
 ```{r fig-study-area, fig.cap = "Figure 1. Study area: the CBD and the three regional centres (Jurong Lake District, Tampines, Woodlands), defined as groups of URA subzones, with MRT lines."}
 show_fig("study_area_map")
@@ -120,40 +86,28 @@ show_fig("study_area_map")
 
 # Methods
 
-<!-- WRITING GUIDE: explain each step so it can be reproduced. Notes on what
-the code does are listed below. -->
+**Centres and time periods.** The CBD comprises 12 Central Area subzones (including Raffles Place, Marina Centre, Tanjong Pagar and Bugis). Jurong Lake District comprises Jurong Gateway, International Business Park and the two Lakeside subzones. Woodlands comprises North Coast and Woodlands Regional Centre. Tampines comprises Tampines North, West and East. Trips are grouped into the weekday AM peak (06:00–10:00), weekday PM peak (17:00–21:00), weekday off-peak and weekend/holiday.
 
-[Methods]
+**Trip indicators.** For each centre, mode, month and period we compute:
 
-<!--
-NOTES FROM THE SCRIPTS (delete after writing):
-- Centres = sets of subzones (CBD: 12 subzones incl. Raffles Place, Marina
-  Centre...; Jurong: Jurong Gateway, International Business Park, Lakeside x2;
-  Woodlands: North Coast, Woodlands Regional Centre; Tampines: North/West/East).
-- Periods: AM peak 06-09h, PM peak 17-20h (weekday), weekday off-peak,
-  weekend/holiday.
-- COVID phases (after Hou et al. 2025): "SD control" up to 2022-03,
-  "Non-control" after.
-- Indicators per centre: attraction = inflow / island-wide trips;
-  in/out ratio = inflow / outflow; CBD outflow share = trips to CBD / outflow;
-  mean trip distance = trip-weighted straight-line distance of trips entering
-  the centre.
-- Service shed: origin subzones ranked by monthly-average trips into a centre;
-  cumulative share 0-25 % = core, 25-50 % strong, 50-75 % weak, 75-100 %
-  peripheral. Principal shed = core + strong.
-- Overlap O(i, j) = share of centre j's principal-shed subzones that are also
-  in centre i's; diagonal = self-containment (share not shared with any other
-  centre).
-- Land use: Master Plan land-use polygons intersected with the centres,
-  grouped into five categories; POIs counted per km2 of each centre.
--->
+- *attraction*: trips arriving in the centre as a share of all island-wide trips;
+- *in/out ratio*: arrivals divided by departures (values above 1 indicate a net destination);
+- *CBD outflow share*: the share of trips leaving the centre that end in the CBD (a measure of dependence on the CBD);
+- *mean trip distance*: the trip-weighted straight-line distance of trips arriving in the centre.
+
+The MRT script counts only trips that enter a centre from outside it. The bus script counts all arrivals at the centre's stops, including trips that start inside the centre, so bus and MRT values are not directly comparable.
+
+**Service sheds.** For each centre, phase and period, origin subzones are ranked by the monthly-average number of trips they send to the centre. A subzone is classified as *core* if the cumulative share of trips before it is below 25%, *strong* if below 50%, *weak* if below 75%, and *peripheral* otherwise (Hou et al., 2025). The principal shed is the union of core and strong subzones, the small set of areas that together supply half of a centre's trips.
+
+**Shed overlap.** For centres *i* and *j*, O(*i*, *j*) is the share of centre *j*'s principal-shed subzones that also belong to centre *i*'s principal shed. The diagonal is the self-containment of *j*: the share of its principal subzones not shared with any other centre. Matrices are read by column.
+
+**Weekend function.** `Weekends.Rmd` intersects the land-use polygons and POIs with the three regional centres, groups land use into five categories, computes POI counts and densities (POIs per km²), and compares them with weekend MRT and bus attraction shares in the two phases.
+
+All analysis was carried out in R with `tidyverse`, `sf`, `arrow`, `patchwork` and `flextable`. Maps use a shared style (`R/map_theme.R`) and are drawn in SVY21 (EPSG:3414).
 
 # Results
 
-## Trip indicators
-
-<!-- WRITING GUIDE: describe what the tables show, with numbers. Compare the
-centres and the two phases. -->
+## MRT/LRT: trip indicators
 
 ```{r tab-mrt}
 mrt <- read_tab("mrt_indicator_means")
@@ -162,7 +116,8 @@ if (is.null(mrt)) {
 } else {
   mrt |>
     filter(period == "AM peak") |>
-    mutate(attraction        = attraction * 100,
+    mutate(zone = recode(as.character(zone), "Jurong East" = "Jurong Lake District"),
+           attraction        = attraction * 100,
            cbd_outflow_share = cbd_outflow_share * 100) |>
     stylized_table(
       cols   = c(Phase = covid_phase, Centre = zone,
@@ -171,11 +126,33 @@ if (is.null(mrt)) {
                  `Mean distance (km)` = mean_dist_km),
       group  = Phase, digits = 2,
       title  = "Table 1. MRT/LRT indicators by centre, weekday AM peak (monthly means).",
-      note   = "Source: LTA DataMall passenger volume by OD (train). CBD outflow share is not defined for the CBD.")
+      note   = "Source: LTA DataMall passenger volume by OD (train); 5 SD-control and 18 non-control months. CBD outflow share is not defined for the CBD.")
 }
 ```
 
-[Interpretation of Table 1]
+`Train_all.Rmd` focuses on the rail network, which carries most long-distance commutes. Table 1 shows that the CBD dominates the morning peak. In the SD control period it already received 10.3% of all island-wide AM-peak MRT trips, and this rose to 15.9% after restrictions ended. Its in/out ratio rose from 8.4 to 12.8, meaning almost 13 trips enter the CBD for every one that leaves. The regional centres are an order of magnitude smaller. Jurong Lake District attracts about 4% of AM-peak trips and is the only regional centre with an in/out ratio above 1 (1.92, then 1.74). Woodlands (0.69, then 0.59) and Tampines (0.43, then 0.38) send out more trips than they receive in the morning, so they behave mainly as residential origins.
+
+The change between phases points to recentralisation rather than decentralisation. All three regional centres lost a little attraction (Jurong Lake District 4.1% to 3.6%, Woodlands 1.6% to 1.5%, Tampines 1.7% to 1.5%). At the same time, the share of their outbound trips going to the CBD rose markedly: from 9.1% to 13.4% in Jurong Lake District, 5.8% to 9.8% in Woodlands and 10.9% to 15.6% in Tampines. The mean distance of trips entering each regional centre also increased by roughly 0.4 km, so the centres drew more from farther away rather than from their own regions. In the PM peak the pattern reverses (Appendix): Woodlands and Tampines become net destinations (in/out ratios of about 1.9–2.0) as residents return home, which confirms their residential character.
+
+## MRT/LRT: service sheds and overlap
+
+```{r fig-mrt-shed-sd, fig.cap = "Figure 2. MRT/LRT service sheds of the four centres, weekday AM peak, SD control period (5 months).", out.width = "85%"}
+show_fig("shed_sd_control_am_peak")
+```
+
+```{r fig-mrt-shed-non, fig.cap = "Figure 3. MRT/LRT service sheds of the four centres, weekday AM peak, non-control period (18 months).", out.width = "85%"}
+show_fig("shed_non_control_am_peak")
+```
+
+Figures 2 and 3 map the AM-peak service sheds. The CBD's core and strong subzones are scattered across the island, along the North South Line in the north (Woodlands, Yishun), the East West Line in the east (Tampines, Bedok, Pasir Ris) and pockets in the west. Its catchment is island-wide rather than regional. [CHECK subzone names against the maps.] The regional centres have more compact sheds. Tampines draws its core subzones from the adjacent eastern estates within about 5 km. Woodlands' principal shed follows the North South Line loop through the north. Jurong Lake District's principal shed stretches north along the North South Line towards Choa Chu Kang and Woodlands, reflecting its role as an employment node for the northwest. Between the two phases the CBD's core shed becomes larger and more concentrated in the east [CHECK], while the regional centres' sheds change little in shape.
+
+```{r fig-mrt-overlap, fig.cap = "Figure 4. Overlap of MRT/LRT principal service sheds, weekday AM peak: (A) SD control, (B) non-control. Read by column; the diagonal is self-containment.", out.width = "90%"}
+show_fig("overlap_am_peak")
+```
+
+The overlap matrices (Figure 4) quantify how far the hinterlands of the regional centres coincide with that of the CBD. In the SD control period, 57% of the principal-shed subzones of Woodlands and of Tampines were also principal subzones of the CBD. After restrictions ended these values fell to 44% and 50%. The regional centres thus compete with the CBD for the same residential areas, and the CBD wins most of the trips (Table 1). Self-containment is low for Woodlands (14%, then 22%) and moderate for Tampines (43%, then 50%). Woodlands and Jurong Lake District share a third or more of their principal sheds, because both draw on the North South Line corridor. Tampines shares no principal subzones with either of the other regional centres, so the east operates as a separate subsystem. The modest rise in self-containment for Woodlands, Tampines and the CBD suggests that hinterlands became slightly more distinct after the pandemic, even as more trips flowed to the CBD.
+
+## Bus: trip indicators, service sheds and overlap
 
 ```{r tab-bus}
 bus <- read_tab("bus_indicator_means")
@@ -187,109 +164,103 @@ if (is.null(bus)) {
     stylized_table(
       group = Centre, digits = 2,
       title = "Table 2. Bus indicators by centre, weekday AM peak (monthly means).",
-      note  = "Source: LTA DataMall passenger volume by OD (bus).")
+      note  = "Source: LTA DataMall passenger volume by OD (bus); 9 SD-control and 18 non-control months. Arrivals include trips that start inside the centre.")
 }
 ```
 
-[Interpretation of Table 2]
+`Bus_SDand_After SD.Rmd` repeats the analysis for buses, which mostly carry short feeder and local trips. The bus indicators (Table 2) tell a different story from the MRT. Tampines is the strongest bus destination, receiving about 4.7–4.9% of island-wide AM-peak bus trips, far more than the CBD (1.1–1.7%). Woodlands' bus attraction rose from 1.8% to 3.2% between the phases, the largest change among the centres [CHECK: possibly linked to the opening of the Thomson-East Coast Line stations and the bus interchange in Woodlands]. Bus trips into the regional centres are short (2.0–3.1 km on average), and almost none of the bus trips leaving the regional centres go to the CBD (under 0.4%). By bus, the regional centres function as local hubs, and long trips to the CBD are made by rail. Jurong Lake District is again a net bus destination (in/out ratio 1.37, then 1.65). The CBD's bus in/out ratio rose from 2.9 to 4.0, which mirrors the MRT recovery of CBD commuting.
 
-## Service sheds
-
-```{r fig-mrt-shed-sd, fig.cap = "Figure 2. MRT/LRT service sheds of the four centres, weekday AM peak, SD control period."}
-show_fig("shed_sd_control_am_peak")
-```
-
-```{r fig-mrt-shed-non, fig.cap = "Figure 3. MRT/LRT service sheds of the four centres, weekday AM peak, non-control period."}
-show_fig("shed_non_control_am_peak")
-```
-
-[Interpretation of Figures 2-3: how far each centre's core/strong shed
-reaches, regional vs island-wide catchments, change between phases]
-
-```{r fig-bus-shed-sd, fig.cap = "Figure 4. Bus service sheds of the four centres, weekday AM peak, SD control period."}
+```{r fig-bus-shed-sd, fig.cap = "Figure 5. Bus service sheds of the four centres, weekday AM peak, SD control period (9 months).", out.width = "85%"}
 show_fig("bus_shed_sd_control_am_peak")
 ```
 
-```{r fig-bus-shed-non, fig.cap = "Figure 5. Bus service sheds of the four centres, weekday AM peak, non-control period."}
+```{r fig-bus-shed-non, fig.cap = "Figure 6. Bus service sheds of the four centres, weekday AM peak, non-control period (18 months).", out.width = "85%"}
 show_fig("bus_shed_non_control_am_peak")
 ```
 
-[Interpretation of Figures 4-5, compared with MRT]
+The bus service sheds (Figures 5 and 6) are strikingly compact. For each regional centre, the core and strong subzones lie within about 5 km of the centre, and most of the island is peripheral. The CBD's bus shed is larger and lies mainly in the city fringe and the inner east (for example along the Geylang–Kallang corridor) [CHECK], but it is still far more local than its MRT shed.
 
-## Overlap of principal service sheds
-
-```{r fig-mrt-overlap, fig.cap = "Figure 6. Overlap of MRT/LRT principal service sheds, weekday AM peak: (A) SD control, (B) non-control. Read by column; the diagonal is self-containment.", out.width = "85%"}
-show_fig("overlap_am_peak")
-```
-
-```{r fig-bus-overlap, fig.cap = "Figure 7. Overlap of bus principal service sheds, weekday AM peak: (a) SD control, (b) non-control.", out.width = "85%"}
+```{r fig-bus-overlap, fig.cap = "Figure 7. Overlap of bus principal service sheds, weekday AM peak: (a) SD control, (b) non-control.", out.width = "90%"}
 show_fig("bus_overlap_am_peak")
 ```
 
-[Interpretation of Figures 6-7: do the regional centres draw from their own
-regions (high self-containment) or compete with the CBD for the same subzones?]
+Consistent with this, the bus principal sheds do not overlap at all (Figure 7). Every centre has 100% self-containment in both phases. Each centre's bus hinterland is exclusive, in sharp contrast to the heavily overlapping MRT sheds in Figure 4.
 
-## Weekend attractiveness, land use and amenities
+## Weekend travel, land use and amenities
 
 ```{r fig-weekend, fig.cap = "Figure 8. Weekend functional attractiveness of the regional centres: (a) POI count and (b) POI density by category (OpenStreetMap), (c) land-use composition (URA Master Plan 2019), (d) weekend public transport attraction share, SD control vs non-control."}
 show_fig("weekend_composite")
 ```
 
-[Interpretation of Figure 8 and how land use / amenities may explain the
-differences between centres]
+`Weekends.Rmd` examines whether the regional centres work as destinations for non-work activities, and relates this to what they contain. Figure 8 combines the amenity, land-use and travel evidence. Tampines has by far the most POIs, especially dining, daily needs and family leisure, and the highest dining density (about 15 POIs/km²) [CHECK]. About half of its land is residential or mixed-use. Woodlands has the largest share of commercial and business land but relatively few POIs. Jurong Lake District has a large leisure and green share, reflecting the Jurong Lake Gardens, and an intermediate amenity level.
+
+These differences match weekend travel. By bus, Tampines is the strongest weekend destination (about 5.2% of island-wide weekend bus trips in both phases), and Woodlands rose from about 2.2% to 3.6%. By MRT, the CBD's weekend share grew from 7.0% to 8.6%, while the three regional centres each lost a little (Jurong Lake District 3.6% to 3.1%, Tampines 2.7% to 2.4%, Woodlands about 2.2% in both phases). Weekend in/out ratios are close to 1 for all centres, as expected for round trips. The pattern suggests that dense, everyday amenities (food, groceries, family leisure) close to large residential populations, as in Tampines, generate local weekend trips by bus. The CBD, meanwhile, regained its role as the main rail-based leisure destination after the pandemic.
 
 # Discussion
 
-<!-- WRITING GUIDE
-- Answer the research question directly, centre by centre.
-- Compare with Hou et al. (2025): what is the same, what differs, why.
-- MRT vs bus: complementary roles?
-- Limitations (the brief rewards honesty): sampled months only; OD gives
-  stops, not true origins/destinations; straight-line distance; subzone-based
-  centre definition; station-code changes and new lines (TEL); tap-in/out data
-  miss walking/cycling and private transport; COVID phase boundary.
-- Policy implications and future work. -->
+**Answer to the research question.** The three regional centres attract and retain trips only to a limited degree, and they have not reduced reliance on the CBD. The evidence is consistent across indicators. The CBD's share of AM-peak MRT trips and its in/out ratio both rose after restrictions ended. The share of trips from each regional centre to the CBD increased. The regional centres' principal MRT sheds overlap strongly with the CBD's. Only Jurong Lake District acts as a net destination in the morning peak, in line with its role as Singapore's designated second CBD and the presence of International Business Park. Woodlands and Tampines function mainly as residential origins on weekday mornings, and as local service and amenity hubs, especially by bus and at weekends.
 
-[Discussion]
+**Mode matters.** The comparison between MRT and bus is the most distinctive finding. Bus sheds are short, exclusive and almost never reach the CBD, while MRT sheds are long, overlapping and dominated by the CBD. The regional centres therefore succeed as local hubs: they are the main bus destinations for their neighbourhoods, and Tampines is the largest bus destination of all four centres. They are much less successful as regional employment centres that would shorten rail commutes. This also suggests that evaluations based on a single mode can be misleading.
+
+**The pandemic did not trigger lasting decentralisation.** The expectation that remote work would shift activity towards regional centres is not supported. The SD control period showed a weaker CBD, but once restrictions were lifted the CBD's dominance returned and grew, while the regional centres' attraction declined slightly. The modest rise in self-containment for Woodlands and Tampines is the only sign of more distinct regional hinterlands. [CHECK: compare directly with the findings of Hou et al. (2025) and state similarities and differences.]
+
+**Limitations.** (1) We sampled four months per year, and the SD-control MRT sample covers only five months, so seasonal effects and specific events may influence the averages. (2) OD data record the boarding and alighting station or stop, not the true origin and destination, and multi-leg journeys are split into separate trips. Bus–MRT transfers are therefore partly double counted, and bus trips to MRT stations in a centre appear as trips to the centre. (3) Distances are straight-line distances. (4) Centres are defined by subzones, which may include non-central land. Results are sensitive to this definition, and the bus analysis assigns stops by spatial intersection while the MRT analysis uses station centroids. (5) The network changed during the study period (for example, the Thomson-East Coast Line opened in stages), which affects comparisons between phases. (6) OSM POI coverage is uneven, and the land-use layer reflects planned rather than actual use. (7) The indicators are descriptive; we do not establish causal effects of the pandemic or of planning policy.
+
+**Implications and future work.** Strengthening the regional centres as employment destinations, rather than as service hubs alone, would require more jobs that match the skills of residents in their sheds. Better cross-regional rail links that bypass the CBD (such as the future Cross Island Line) may help. Future work could use journey-level data to link transfers, add employment and population data to normalise flows, and test the effect of specific interventions such as new lines and the Jurong Lake District redevelopment.
 
 # Conclusion
 
-[Conclusion: 1-2 paragraphs, answer to the research question, main evidence,
-one forward-looking sentence]
+Using MRT and bus OD data for 2020–2026, combined with subzone boundaries, land use and OpenStreetMap amenities, this study assessed whether Singapore's regional centres have reduced reliance on the CBD. They have not. In the weekday morning peak the CBD's attraction and dependence on it both increased after COVID-19 restrictions ended. The regional centres' rail hinterlands overlap heavily with the CBD's, and only Jurong Lake District is a net destination. The regional centres do succeed as local hubs: their bus catchments are compact and exclusive, and amenity-rich Tampines is the strongest bus destination on both weekdays and weekends. Decentralisation in Singapore has so far produced strong neighbourhood centres rather than true counter-magnets to the CBD. Future policy evaluation should consider both rail and bus, and both work and non-work travel.
 
 # References {-}
 
-<!-- Use one citation style consistently (e.g. APA). Include every paper,
-dataset and key R package you used. -->
+<!-- [CHECK] Verify each reference (authors, year, title, journal, pages) and use one style consistently. Add the papers cited in the literature review. -->
 
-[Papers, e.g. Hou et al. (2025) - full reference]
+Hou, [initials], et al. (2025). [Title]. *[Journal]*, [volume(issue)], [pages]. [CHECK: full reference]
 
-Land Transport Authority. (2026). *LTA DataMall: Passenger volume by origin destination bus stops / train stations* [Data set]. Singapore Open Data Licence.
+Land Transport Authority. (2026). *LTA DataMall: Passenger volume by origin destination bus stops; Passenger volume by origin destination train stations; Bus stops; Train station codes* [Data sets]. Singapore Open Data Licence.
 
-Urban Redevelopment Authority. (2019). *Master Plan 2019 Subzone Boundary (No Sea)* and *Master Plan 2019 Land Use layer* [Data sets]. data.gov.sg, Singapore Open Data Licence.
+OpenStreetMap contributors. (2026). *OpenStreetMap data, Malaysia–Singapore–Brunei extract* [Data set]. Geofabrik. Open Database Licence (ODbL).
 
-OpenStreetMap contributors. (2026). *OpenStreetMap data, Malaysia-Singapore-Brunei extract* [Data set]. Geofabrik. Open Database Licence (ODbL).
+R Core Team. (2025). *R: A language and environment for statistical computing*. R Foundation for Statistical Computing.
 
-R Core Team. (2025). *R: A language and environment for statistical computing*. R Foundation for Statistical Computing. Packages: tidyverse, sf, arrow, patchwork, flextable, osmextract, ggspatial, here.
+Roth, C., Kang, S. M., Batty, M., & Barthélemy, M. (2011). Structure of urban movements: Polycentric activity and entangled hierarchical flows. *PLoS ONE, 6*(1), e15923. [CHECK]
+
+Urban Redevelopment Authority. (2019). *Master Plan 2019 Subzone Boundary (No Sea); Master Plan 2019 Land Use layer; Master Plan 2019 Rail Line layer* [Data sets]. data.gov.sg, Singapore Open Data Licence.
+
+Zhong, C., Arisona, S. M., Huang, X., Batty, M., & Schmitt, G. (2014). Detecting the dynamics of urban structure through spatial network analysis. *International Journal of Geographical Information Science, 28*(11), 2178–2199. [CHECK]
 
 # AI use statement {-}
 
-<!-- Required by the brief: which AI tools you used and for what purpose. Be specific and accurate. -->
+<!-- Required by the brief. Describe accurately what AI tools were used for, e.g. code structuring and debugging, figure-saving workflow, and drafting text that the group then reviewed and revised. -->
 
 [AI use statement]
 
 # Appendix {-}
 
-<!-- Maps for the other periods do not fit in 10 pages. Move or delete as needed. -->
-
-```{r fig-appendix-pm, fig.cap = "Figure A1. MRT/LRT service sheds, weekday PM peak, non-control period."}
-show_fig("shed_non_control_pm_peak")
+```{r tab-mrt-all}
+if (!is.null(mrt)) {
+  mrt |>
+    filter(period != "AM peak") |>
+    mutate(zone = recode(as.character(zone), "Jurong East" = "Jurong Lake District"),
+           attraction        = attraction * 100,
+           cbd_outflow_share = cbd_outflow_share * 100,
+           group = paste(covid_phase, period, sep = " | ")) |>
+    stylized_table(
+      cols   = c(group, Centre = zone,
+                 `Attraction (%)` = attraction, `In/out ratio` = in_out_ratio,
+                 `CBD outflow (%)` = cbd_outflow_share,
+                 `Mean distance (km)` = mean_dist_km),
+      labels = c(group = "Phase | period"),
+      group  = group, digits = 2,
+      title  = "Table A2. MRT/LRT indicators for the PM peak, weekday off-peak and weekend/holiday periods.")
+}
 ```
 
-```{r fig-appendix-weekend, fig.cap = "Figure A2. MRT/LRT service sheds, weekends and holidays, non-control period."}
+```{r fig-appendix-weekend, fig.cap = "Figure A1. MRT/LRT service sheds, weekends and holidays, non-control period."}
 show_fig("shed_non_control_weekend")
 ```
 
-```{r fig-appendix-overlap-weekend, fig.cap = "Figure A3. Overlap of MRT/LRT principal service sheds, weekends and holidays.", out.width = "85%"}
+```{r fig-appendix-overlap-weekend, fig.cap = "Figure A2. Overlap of MRT/LRT principal service sheds, weekends and holidays.", out.width = "90%"}
 show_fig("overlap_weekend")
 ```
