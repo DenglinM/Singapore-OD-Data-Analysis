@@ -16,6 +16,7 @@ library(arrow)
 library(here)
 library(patchwork)
 library(ggspatial)
+library(kableExtra)
 
 source(here("R", "od_io.R"))
 source(here("R", "map_theme.R"))
@@ -719,5 +720,537 @@ write_csv(
   final_metrics,
   here("data", "processed", "hub_bus_metrics_sd_control.csv")
 )
+```
+
+```{r}
+od_subzone_hub <- total_bus %>% 
+  inner_join(
+    dict_stop_subzone,
+    by = c("ORIGIN_PT_CODE" = "BUS_STOP_NUM")
+    ) %>% 
+  inner_join(
+    dict_hub_stop,
+    by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM")
+    ) %>%
+  group_by(zone, origin_subzone) %>% 
+  summarise(
+    total_trips = sum(TOTAL_TRIPS, na.rm = TRUE),
+    .groups = "drop"
+  ) %>% 
+  mutate(
+    avg_monthly_trips =
+      total_trips / n_distinct(total_bus$YEAR_MONTH)
+    )
+```
+
+```{r}
+service_sheds <- od_subzone_hub %>%
+  group_by(zone) %>%
+  arrange(
+    desc(avg_monthly_trips),
+    origin_subzone,
+    .by_group = TRUE
+  ) %>%
+  mutate(
+    hub_total = sum(avg_monthly_trips),
+    trip_share = avg_monthly_trips / hub_total,
+    cumulative_share = cumsum(trip_share),
+    cumulative_before = lag(
+      cumulative_share,
+      default = 0
+    ),
+    shed_type = case_when(
+      cumulative_before < 0.25 ~ "Core",
+      cumulative_before < 0.50 ~ "Strong",
+      cumulative_before < 0.75 ~ "Weak",
+      TRUE ~ "Peripheral"
+    ),
+    principal = shed_type %in% c("Core", "Strong")
+  ) %>%
+  ungroup() %>%
+  mutate(
+    period = period_name
+  )
+
+shed_summary <- service_sheds %>%
+  group_by(period, zone, shed_type) %>%
+  summarise(
+    n_subzones = n(),
+    total_trips = sum(avg_monthly_trips),
+    flow_share = sum(trip_share),
+    .groups = "drop"
+  )
+
+shed_summary <- shed_summary %>%
+  mutate(
+    shed_type = factor(
+      shed_type,
+      levels = c(
+        "Core",
+        "Strong",
+        "Weak",
+        "Peripheral"
+      )
+    )
+  ) %>%
+  arrange(zone, shed_type)
+```
+
+```{r}
+shed_levels <- c(
+  "Core",
+  "Strong",
+  "Weak",
+  "Peripheral",
+  "No flow"
+)
+
+centre_order <- c(
+  "Woodlands",
+  "Tampines",
+  "Jurong Lake District",
+  "CBD"
+)
+```
+
+```{r}
+principal_sheds <- service_sheds %>%
+  filter(principal) %>%
+  distinct(
+    period,
+    zone,
+    origin_subzone
+  )
+
+shed_sizes <- principal_sheds %>%
+  count(
+    period,
+    zone,
+    name = "n_principal"
+  )
+
+shed_intersections <- principal_sheds %>%
+  rename(center_i = zone) %>%
+  inner_join(
+    principal_sheds %>% rename(center_j = zone),
+    by = c("period", "origin_subzone"),
+    relationship = "many-to-many"
+  ) %>%
+  count(period, center_i, center_j, name = "n_overlap")
+
+shed_overlap <- crossing(
+  period = period_name,
+  center_i = names(hub_zones),
+  center_j = names(hub_zones)
+) %>%
+  left_join(
+    shed_intersections,
+    by = c("period", "center_i", "center_j")
+  ) %>%
+  left_join(
+    shed_sizes %>%
+      rename(center_j = zone, n_j = n_principal),
+    by = c("period", "center_j")
+  ) %>%
+  mutate(
+    n_overlap = replace_na(n_overlap, 0L),
+    overlap_pct = 100 * n_overlap / n_j
+  )
+```
+
+```{r}
+subzone_membership <- principal_sheds %>%
+  count(
+    period,
+    origin_subzone,
+    name = "n_centers"
+  )
+
+unique_sheds <- principal_sheds %>%
+  left_join(
+    subzone_membership,
+    by = c("period", "origin_subzone")
+  ) %>%
+  filter(n_centers == 1) %>%
+  count(period, zone, name = "n_unique")
+
+self_containment <- shed_sizes %>%
+  left_join(
+    unique_sheds,
+    by = c("period", "zone")
+  ) %>%
+  mutate(
+    n_unique = replace_na(n_unique, 0L),
+    unique_pct = 100 * n_unique / n_principal
+  )
+
+shed_overlap_final <- shed_overlap %>%
+  left_join(
+    self_containment %>%
+      select(period, zone, unique_pct) %>%
+      rename(center_j = zone),
+    by = c("period", "center_j")
+  ) %>%
+  mutate(
+    overlap_pct = if_else(
+      center_i == center_j,
+      unique_pct,
+      overlap_pct
+    )
+  )
+```
+
+```{r}
+overlap_plot_data <- shed_overlap_final %>%
+  mutate(
+    center_i = recode(
+      center_i,
+      "Jurong East" = "Jurong Lake District"
+    ),
+    center_j = recode(
+      center_j,
+      "Jurong East" = "Jurong Lake District"
+    ),
+    overlap = overlap_pct / 100
+  )
+```
+
+```{r}
+p_overlap <- stylized_matrix(
+  center_j,
+  center_i,
+  overlap,
+  data = overlap_plot_data,
+  order = centre_order,
+  limits = c(0, 1),
+  legend_title = "Overlap",
+  title = "Bus Principal Service Shed Overlap",
+  subtitle = "Bus | AM Peak | SD Control Period",
+  caption = paste(
+    "Read by column. Diagonal indicates the share of",
+    "exclusive principal subzones."
+  )
+)
+
+p_overlap
+```
+
+```{r}
+shed_map_data <- crossing(
+  zone = names(hub_zones),
+  origin_subzone = unique(subzone$SUBZONE_N)
+) %>%
+  left_join(
+    service_sheds %>%
+      select(
+        zone,
+        origin_subzone,
+        shed_type,
+        trip_share,
+        cumulative_share
+      ),
+    by = c("zone", "origin_subzone")
+  ) %>%
+  mutate(
+    shed_type = replace_na(shed_type, "No flow"),
+    zone = recode(
+      zone,
+      "Jurong East" = "Jurong Lake District"
+    ),
+    shed_type = factor(
+      shed_type,
+      levels = shed_levels
+    )
+  )
+```
+
+```{r}
+service_sheds_sf <- subzone %>%
+  rename(origin_subzone = SUBZONE_N) %>%
+  left_join(
+    shed_map_data,
+    by = "origin_subzone"
+  )
+```
+
+```{r}
+plots <- lapply(seq_along(centre_order), function(i) {
+
+  current_centre <- centre_order[i]
+
+  map_data <- service_sheds_sf %>%
+    filter(zone == current_centre)
+
+  centre_outline <- hub_subzones %>%
+    filter(zone == current_centre)
+
+  centre_outline <- st_sf(
+    geometry = st_union(centre_outline)
+  )
+
+  sg_map(
+    data = map_data,
+    var = shed_type,
+    type = "discrete",
+    values = shed_colours,
+    breaks = shed_breaks,
+    labels = shed_labels,
+    outline = centre_outline,
+    rings_km = c(5, 10, 15),
+    legend = "right",
+    legend_title = "Service Shed",
+    title = paste0(
+      "(", letters[i], ") ",
+      current_centre
+    ),
+    bb = st_bbox(subzone)
+  )
+})
+```
+
+```{r}
+p_service_sheds <- wrap_plots(
+  plots,
+  ncol = 2,
+  guides = "collect"
+) +
+  plot_annotation(
+    title = "Bus service sheds (AM peak, SD Control period)",
+    subtitle = paste(
+      "Origin subzones ranked by their share of",
+      "bus trips entering the centre (cumulative %)."
+    ),
+    caption = paste(
+      "Data: LTA DataMall passenger volume by OD (Bus), monthly average of 9 months; URA Master Plan 2019 subzones."
+    )
+  ) &
+  theme(
+    legend.position = "right",
+    plot.title = element_text(
+      face = "bold",
+      hjust = 0
+    )
+  )
+
+p_service_sheds
+```
+
+```{r}
+service_sheds_sd <- service_sheds
+shed_summary_sd <- shed_summary
+shed_overlap_sd <- shed_overlap_final
+service_sheds_sf_sd <- service_sheds_sf
+
+p_overlap_sd <- p_overlap
+p_service_sheds_sd <- p_service_sheds
+```
+
+```{r}
+shed_comparison <- bind_rows(
+  shed_summary_sd,
+  shed_summary_non
+) %>%
+  select(
+    period,
+    zone,
+    shed_type,
+    n_subzones
+  ) %>%
+  pivot_wider(
+    names_from = period,
+    values_from = n_subzones
+  ) %>%
+  mutate(
+    change = `Non-control` - `SD Control`
+  )
+```
+
+```{r}
+make_overlap_panel <- function(df, period_label) {
+
+  plot_data <- df %>%
+    mutate(
+      center_i = recode(
+        center_i,
+        "Jurong East" = "Jurong Lake District"
+      ),
+      center_j = recode(
+        center_j,
+        "Jurong East" = "Jurong Lake District"
+      ),
+      overlap = overlap_pct / 100
+    )
+
+  stylized_matrix(
+    center_j,
+    center_i,
+    overlap,
+    data = plot_data,
+    order = centre_order,
+    limits = c(0, 1),
+    legend_title = "Overlap",
+    title = period_label,
+    caption = NULL,
+    tag = NULL
+  ) +
+    theme(
+      plot.title = element_text(
+        size = 13,
+        face = "plain",
+        hjust = 0.5
+      )
+    )
+}
+
+p_sd_panel <- make_overlap_panel(
+  shed_overlap_sd,
+  "SD control"
+)
+
+p_non_panel <- make_overlap_panel(
+  shed_overlap_non,
+  "Non-control"
+)
+```
+
+```{r}
+p_overlap_compare <- (
+  p_sd_panel | p_non_panel
+) +
+  plot_layout(
+    guides = "collect",
+    widths = c(1, 1)
+  ) +
+  plot_annotation(
+    title = "Bus principal service-shed overlap (AM peak)",
+    subtitle = "SD control vs Non-control",
+    tag_levels = "a",
+    tag_prefix = "(",
+    tag_suffix = ")",
+
+    caption = paste0(
+      "Read by column: share of the column centre's principal shed ",
+      "also belonging to the row centre. Diagonal = exclusive principal-shed share.\n",
+      "Data: LTA DataMall Bus OD, 9 months (SD control) and 18 months (Non-control); ",
+      "URA Master Plan 2019 subzones."
+    ),
+
+    theme = theme(
+      plot.title = element_text(size = 16, hjust = 0),
+      plot.subtitle = element_text(size = 10, hjust = 0),
+      plot.caption = element_text(size = 8, hjust = 0),
+      plot.margin = margin(8, 8, 8, 8)
+    )
+  ) &
+  theme(
+    legend.position = "bottom",
+    plot.tag = element_text(size = 13, face = "bold")
+  )
+
+p_overlap_compare
+```
+
+```{r}
+final_metrics_sd <- final_metrics
+
+service_sheds_sd <- service_sheds
+shed_summary_sd <- shed_summary
+shed_overlap_sd <- shed_overlap_final
+service_sheds_sf_sd <- service_sheds_sf
+
+p_overlap_sd <- p_overlap
+p_service_sheds_sd <- p_service_sheds
+```
+
+```{r}
+write_csv(
+  final_metrics_sd,
+  here("data", "processed", "hub_bus_metrics_sd_control.csv")
+)
+
+write_csv(
+  service_sheds_sd,
+  here("data", "processed", "bus_service_sheds_sd_control.csv")
+)
+
+write_csv(
+  shed_overlap_sd,
+  here("data", "processed", "bus_overlap_sd_control.csv")
+)
+
+st_write(
+  service_sheds_sf_sd,
+  here("data", "processed", "bus_service_sheds_sd_control.gpkg"),
+  delete_dsn = TRUE,
+  quiet = TRUE
+)
+```
+
+```{r}
+metrics_table <- bind_rows(
+  final_metrics_sd %>%
+    mutate(Period = "SD Control"),
+
+  final_metrics_non %>%
+    mutate(Period = "Non-control")
+) %>%
+  group_by(zone, Period) %>%
+  summarise(
+    `Attraction (%)` = mean(attraction_share, na.rm = TRUE) * 100,
+    `In/Out Ratio` = mean(in_out_ratio, na.rm = TRUE),
+    `CBD Outflow (%)` = mean(cbd_outflow_rate, na.rm = TRUE) * 100,
+    `Average Distance (km)` = mean(weighted_avg_dist_km, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    zone = recode(
+      zone,
+      "Jurong East" = "Jurong Lake District"
+    ),
+    zone = factor(zone, levels = centre_order),
+    Period = factor(
+      Period,
+      levels = c("SD Control", "Non-control")
+    )
+  ) %>%
+  arrange(zone, Period)
+```
+
+```{r}
+p_metrics_table <- metrics_table %>%
+  rename(Centre = zone) %>%
+  kbl(
+    format = "html",
+    caption = "Comparison of Bus Mobility Indicators between SD Control and Non-control Periods",
+    digits = 2,
+    align = c("l", "l", "r", "r", "r", "r")
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "condensed"),
+    full_width = FALSE,
+    position = "center",
+    font_size = 12
+  ) %>%
+  collapse_rows(
+    columns = 1,
+    valign = "middle"
+  )
+
+p_metrics_table
+```
+
+```{r}
+rm(list = setdiff(
+  ls(all.names = TRUE),
+  c(
+    "p_service_sheds_sd",
+    "p_service_sheds_non",
+    "p_overlap_compare",
+    "metrics_table",
+    "p_metrics_table"
+  )
+))
+
+gc()
 ```
 
