@@ -14,6 +14,7 @@ library(tidyverse)
 library(scales)
 library(patchwork)
 library(sf)
+library(ggplot2)
 library(RColorBrewer)
 library(kableExtra)
 library(here)
@@ -178,15 +179,20 @@ poi_density <- poi_counts %>%
 
 ```{r message=FALSE, warning=FALSE}
 land_use_3414 <- land_use_raw %>%
-  st_make_valid() %>% 
+  st_make_valid() %>%
   st_transform(3414)
 
 rm(land_use_raw)
 
 land_use_hubs <- st_intersection(
-  land_use_3414, hubs %>% select(PLN_AREA_N)
-  ) %>% 
-  mutate(hub = str_to_title(PLN_AREA_N))
+  land_use_3414,
+  hubs %>%
+    st_transform(3414) %>%
+    select(PLN_AREA_N)
+) %>%
+  mutate(
+    hub = str_to_title(PLN_AREA_N)
+  )
 ```
 
 ```{r}
@@ -235,4 +241,442 @@ land_use_summary_clean$land_category <- factor(
              "Leisure/Green", "Community/Institutional", "Other")
 )
 ```
+
+```{r}
+bus_weekend_sd <- read_csv(
+  here("data", "processed", "bus_weekend_arrivals_sd_control.csv"),
+  show_col_types = FALSE
+) %>%
+  mutate(mode = "Bus", period = "SD Control")
+
+bus_weekend_non <- read_csv(
+  here("data", "processed", "bus_weekend_arrivals_non_control.csv"),
+  show_col_types = FALSE
+) %>%
+  mutate(mode = "Bus", period = "Non-control")
+
+mrt_weekend_sd <- read_csv(
+  here("data", "processed", "mrt_weekend_arrivals_sd_control.csv"),
+  show_col_types = FALSE
+) %>%
+  mutate(mode = "MRT/LRT", period = "SD Control")
+
+mrt_weekend_non <- read_csv(
+  here("data", "processed", "mrt_weekend_arrivals_non_control.csv"),
+  show_col_types = FALSE
+) %>%
+  mutate(mode = "MRT/LRT", period = "Non-control")
+```
+
+```{r}
+weekend_arrivals_all <- bind_rows(
+  bus_weekend_sd,
+  bus_weekend_non,
+  mrt_weekend_sd,
+  mrt_weekend_non
+) %>%
+  mutate(
+    zone = recode(
+      zone,
+      "Jurong East" = "Jurong Lake District"
+    ),
+    period = factor(
+      period,
+      levels = c("SD Control", "Non-control")
+    ),
+    mode = factor(
+      mode,
+      levels = c("Bus", "MRT/LRT")
+    )
+  )
+```
+
+```{r}
+weekend_attraction_summary <- weekend_arrivals_all %>%
+  group_by(mode, period, zone) %>%
+  summarise(
+    mean_attraction = mean(
+      arrival_share_island,
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    zone = factor(
+      zone,
+      levels = c(
+        "Woodlands",
+        "Tampines",
+        "Jurong Lake District",
+        "CBD"
+      )
+    )
+  )
+```
+
+```{r}
+centre_order3 <- c("Woodlands", "Tampines", "Jurong Lake District")
+centre_order4 <- c("CBD", "Jurong Lake District", "Tampines", "Woodlands")
+
+poi_type_order <- c(
+  "Nightlife",
+  "Dining",
+  "Retail Shopping",
+  "Daily Needs",
+  "Family Leisure",
+  "Community"
+)
+
+land_type_order <- c(
+  "Residential& Mixed-Use",
+  "Commercial/Business",
+  "Leisure/Green",
+  "Community/Institutional",
+  "Other"
+)
+```
+
+```{r}
+poi_count_data <- poi_counts %>%
+  mutate(
+    hub = recode(
+      hub,
+      "Jurong East" = "Jurong Lake District"
+    ),
+    hub = factor(hub, levels = centre_order3),
+    poi_category = str_replace_all(poi_category, "_", " "),
+    poi_category = factor(poi_category, levels = poi_type_order)
+  ) %>%
+  complete(
+    hub,
+    poi_category,
+    fill = list(count = 0)
+  )
+
+poi_density_data <- poi_density %>%
+  mutate(
+    hub = recode(
+      hub,
+      "Jurong East" = "Jurong Lake District"
+    ),
+    hub = factor(hub, levels = centre_order3),
+    poi_category = str_replace_all(poi_category, "_", " "),
+    poi_category = factor(poi_category, levels = poi_type_order)
+  ) %>%
+  complete(
+    hub,
+    poi_category,
+    fill = list(density_per_km2 = 0)
+  )
+
+land_plot_data <- land_use_summary_clean %>%
+  mutate(
+    hub = recode(
+      hub,
+      "Jurong East" = "Jurong Lake District"
+    ),
+    hub = factor(
+      hub,
+      levels = centre_order3
+    ),
+    land_category = factor(
+      as.character(land_category),
+      levels = land_type_order
+    )
+  )
+
+attraction_plot_data <- weekend_arrivals_all %>%
+  mutate(
+    zone = recode(
+      zone,
+      "Jurong East" = "Jurong Lake District"
+    ),
+    period = factor(
+      period,
+      levels = c("SD Control", "Non-control")
+    ),
+    mode = factor(
+      mode,
+      levels = c("Bus", "MRT/LRT")
+    )
+  ) %>%
+  group_by(mode, period, zone) %>%
+  summarise(
+    attraction_share = mean(arrival_share_island, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    zone = factor(zone, levels = centre_order4)
+  )
+```
+
+```{r}
+p_poi_count <- ggplot(
+  poi_count_data,
+  aes(
+    x = poi_category,
+    y = hub,
+    size = count
+  )
+) +
+  geom_point(
+    colour = "#4C78A8",
+    alpha = 0.85
+  ) +
+  scale_size_area(
+    max_size = 18,
+    name = "POI Count"
+  ) +
+  labs(
+    title = "(a) POI Count",
+    subtitle = "Bubble size indicates the number of POIs",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    axis.text.x = element_text(angle = 30, hjust = 1),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(colour = "grey90"),
+    legend.position = "none",
+    plot.title = element_text(size = 13, face = "bold"),
+    plot.subtitle = element_text(size = 9, colour = "grey40")
+  )
+```
+
+```{r}
+density_max <- max(
+  poi_density_data$density_per_km2,
+  na.rm = TRUE
+)
+
+make_heat_strip <- function(hub_name) {
+  ggplot(
+    filter(poi_density_data, hub == hub_name),
+    aes(
+      x = poi_category,
+      y = hub,
+      fill = density_per_km2
+    )
+  ) +
+    geom_tile(
+      colour = "white",
+      linewidth = 0.8,
+      height = 0.8
+    ) +
+    scale_fill_viridis_c(
+      option = "C",
+      limits = c(0, density_max),
+      name = "POI Density\n(POIs/km²)",
+      guide = guide_colourbar(
+        title.position = "top",
+        direction = "horizontal",
+        barwidth = unit(4, "cm"),
+        barheight = unit(0.5, "cm")
+      )
+    ) +
+    labs(
+      title = paste0(
+        "(",
+        ifelse(
+          hub_name == "Woodlands", "b1",
+          ifelse(hub_name == "Tampines", "b2", "b3")
+        ),
+        ") ",
+        hub_name
+      ),
+      x = NULL,
+      y = NULL
+    ) +
+    theme_minimal(base_size = 10) +
+    theme(
+      axis.text.x = element_text(
+        angle = 45,
+        hjust = 1,
+        size = 8
+      ),
+      axis.text.y = element_blank(),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank(),
+      legend.position = "bottom",
+      legend.title = element_text(size = 9),
+      legend.text = element_text(size = 8),
+      plot.title = element_text(
+        size = 11,
+        face = "bold",
+        hjust = 0.5
+      )
+    )
+}
+
+p_heat_woodlands <- make_heat_strip("Woodlands")
+p_heat_tampines  <- make_heat_strip("Tampines")
+p_heat_jld       <- make_heat_strip("Jurong Lake District")
+```
+
+```{r}
+p_heat_combined <- (
+  p_heat_woodlands |
+  p_heat_tampines |
+  p_heat_jld
+) +
+  plot_layout(
+    guides = "collect"
+  ) &
+  theme(
+    legend.position = "bottom"
+  )
+
+p_poi_bundle <- (
+  p_poi_count /
+  p_heat_combined
+) +
+  plot_layout(
+    heights = c(2.2, 1.2)
+  )
+
+p_poi_bundle
+```
+
+```{r}
+p_landuse <- ggplot(
+  land_plot_data,
+  aes(
+    x = 2,
+    y = percentage,
+    fill = land_category
+  )
+) +
+  geom_col(
+    width = 1,
+    colour = "white"
+  ) +
+  coord_polar(theta = "y") +
+  xlim(0.5, 2.5) +
+  facet_wrap(
+    ~ hub,
+    nrow = 1
+  ) +
+  labs(
+    title = "(c) Land-use Composition",
+    fill = "Land-use Category"
+  ) +
+  guides(
+    fill = guide_legend(
+    nrow = 2,
+    byrow = TRUE,
+    title.position = "top"
+    )
+  ) +
+  theme_void(base_size = 11) +
+  theme(
+    strip.text = element_text(face = "bold", size = 11),
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.title = element_text(size = 9), 
+    legend.text = element_text(size = 9), 
+    legend.key.size = unit(0.4, "cm"),
+    plot.title = element_text(size = 13, face = "bold")
+  )
+```
+
+```{r}
+p_attraction <- ggplot(
+  attraction_plot_data,
+  aes(
+    x = attraction_share,
+    y = zone,
+    fill = period
+  )
+) +
+  geom_col(
+    position = position_dodge(width = 0.75),
+    width = 0.65
+  ) +
+  facet_wrap(
+    ~ mode,
+    nrow = 1,
+    scales = "free_x"
+  ) +
+  scale_x_continuous(
+    labels = label_percent(accuracy = 0.1),
+    expand = expansion(mult = c(0, 0.08))
+  ) +
+  scale_fill_manual(
+    values = c(
+      "SD Control"  = "#89A9BA",
+      "Non-control" = "#D9A46C"
+    )
+  ) +
+  labs(
+    title = "(d) Weekend Public Transport Attraction Share",
+    subtitle = "SD Control vs Non-control",
+    x = "Share of island-wide trips",
+    y = NULL,
+    fill = NULL
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    strip.text = element_text(face = "bold"),
+    plot.title = element_text(size = 13, face = "bold"),
+    plot.subtitle = element_text(size = 9, colour = "grey40")
+  )
+```
+
+```{r, fig.width=15, fig.height=10, out.width="100%"}
+p_top <- (
+  p_poi_bundle | p_landuse
+) +
+  plot_layout(
+    widths = c(1, 1)
+  )
+
+p_weekend_composite <- (
+  p_top / p_attraction
+) +
+  plot_layout(
+    heights = c(2, 1)
+  ) +
+  plot_annotation(
+    title = "Weekend Functional Attractiveness of Regional Centres",
+    subtitle = "Functional provision, land-use composition and public transport attraction",
+    caption = paste0(
+      "Note: POI count shows the number of OSM POIs by category; mini heat strips show POI density (POIs/km²). Weekend observations include public holidays.",
+      "\nLand-use composition represents the percentage of land area by category. ",
+      "Attraction share = arrivals to centre / island-wide trips, averaged across sampled months.\n",
+      "Data: OpenStreetMap (2026); URA Master Plan 2019; ",
+      "LTA DataMall Bus and MRT/LRT OD (9 SD Control months; 18 Non-control months)."
+    ),
+    theme = theme(
+      plot.title = element_text(size = 17, hjust = 0),
+      plot.subtitle = element_text(size = 10, hjust = 0),
+      plot.caption = element_text(size = 8, hjust = 0, lineheight = 1.2)
+    )
+  )
+
+p_weekend_composite
+```
+
+```{r final-cleanup, include=FALSE}
+rm(list = setdiff(
+  ls(all.names = TRUE),
+  c(
+    "p_weekend_composite",
+    "p_poi_bundle",
+    "p_landuse",
+    "p_attraction",
+    "poi_counts",
+    "poi_density",
+    "land_use_summary_clean",
+    "attraction_plot_data",
+    "weekend_arrivals_all"
+  )
+))
+
+gc()
+```
+
 
