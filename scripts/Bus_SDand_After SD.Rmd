@@ -43,6 +43,8 @@ total_bus <- od %>%
     TIME_PER_HOUR %in% 6:9
     ) %>%
   collect()
+
+period_name <- "Non-control"
 ```
 
 ```{r}
@@ -224,10 +226,6 @@ write_csv(
   final_metrics,
   here("data", "processed", "hub_bus_metrics_afterSD.csv")
 )
-```
-
-```{r}
-period_name <- "Non-control"
 ```
 
 ```{r}
@@ -506,14 +504,20 @@ hub_subzones <- hub_subzones %>%
     )
   )
 
-plots <- lapply(centre_order, function(current_centre) {
+plots <- lapply(seq_along(centre_order), function(i) {
+
+  current_centre <- centre_order[i]
+
   map_data <- service_sheds_sf %>%
     filter(zone == current_centre)
-  
+
   centre_outline <- hub_subzones %>%
-    filter(zone == current_centre) %>%
-    summarise(geometry = st_union(geometry))
-  
+    filter(zone == current_centre)
+
+  centre_outline <- st_sf(
+    geometry = st_union(centre_outline)
+  )
+
   sg_map(
     data = map_data,
     var = shed_type,
@@ -523,10 +527,13 @@ plots <- lapply(centre_order, function(current_centre) {
     labels = shed_labels,
     outline = centre_outline,
     rings_km = c(5, 10, 15),
-    centre_label = NULL,
     legend = "right",
     legend_title = "Service Shed",
-    title = current_centre
+    title = paste0(
+      "(", letters[i], ") ",
+      current_centre
+    ),
+    bb = st_bbox(subzone)
   )
 })
 ```
@@ -538,17 +545,179 @@ p_service_sheds <- wrap_plots(
   guides = "collect"
 ) +
   plot_annotation(
-    title = "Bus Service Sheds",
-    subtitle = "AM Peak | Non-control Period",
-    caption = "Data: LTA DataMall passenger volume by OD (MRT/LRT), monthly average of 18 months; URA Master Plan 2019 subzones.",
-    tag_levels = "a",
-    tag_prefix = "(",
-    tag_suffix = ")"
+    title = "Bus service sheds (AM peak, Non-control period)",
+    subtitle = paste(
+      "Origin subzones ranked by their share of",
+      "bus trips entering the centre (cumulative %)."
+    ),
+    caption = paste(
+      "Data: LTA DataMall passenger volume by OD (Bus), monthly average of 18 months; URA Master Plan 2019 subzones."
+    )
   ) &
   theme(
-    legend.position = "right"
+    legend.position = "right",
+    plot.title = element_text(
+      face = "bold",
+      hjust = 0
+    )
   )
 
 p_service_sheds
+```
+
+```{r}
+final_metrics_non <- final_metrics
+
+service_sheds_non <- service_sheds
+shed_summary_non <- shed_summary
+shed_overlap_non <- shed_overlap_final
+
+service_sheds_sf_non <- service_sheds_sf
+p_overlap_non <- p_overlap
+p_service_sheds_non <- p_service_sheds
+```
+
+```{r}
+rm(total_bus, od_subzone_hub, trip_distance_summary)
+
+gc()
+```
+
+```{r}
+sd_months <- c(
+  202003, 202006, 202009, 202012,
+  202103, 202106, 202109, 202112,
+  202203
+)
+
+total_bus <- od %>%
+  filter(
+    MODE == "bus",
+    YYYYMM %in% sd_months,
+    DAY_TYPE == "WEEKDAY",
+    TIME_PER_HOUR %in% 6:9
+  ) %>%
+  collect()
+
+period_name <- "SD Control"
+```
+
+```{r}
+island_total <- total_bus %>%
+  group_by(YEAR_MONTH) %>%
+  summarise(
+    total_island_trips = sum(TOTAL_TRIPS, na.rm = TRUE),
+    .groups = "drop"
+    )
+
+arrivals <- total_bus %>%
+  inner_join(
+    dict_hub_stop,
+    by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM")
+  ) %>%
+  group_by(YEAR_MONTH, zone) %>%
+  summarise(
+    total_arrivals = sum(TOTAL_TRIPS, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+departures <- total_bus %>%
+  inner_join(
+    dict_hub_stop,
+    by = c("ORIGIN_PT_CODE" = "BUS_STOP_NUM")
+  ) %>%
+  group_by(YEAR_MONTH, zone) %>%
+  summarise(
+    total_departures = sum(TOTAL_TRIPS, na.rm = TRUE),
+    trips_to_cbd = sum(
+      TOTAL_TRIPS[
+        DESTINATION_PT_CODE %in% 
+          dict_hub_stop$BUS_STOP_NUM[
+            dict_hub_stop$zone == "CBD"
+            ]
+        ],
+      na.rm = TRUE
+      ),
+    .groups = "drop"
+  )
+
+hub_metrics <- arrivals %>%
+  left_join(
+    departures,
+    by = c("YEAR_MONTH", "zone")
+  ) %>%
+  left_join(
+    island_total,
+    by = "YEAR_MONTH"
+  ) %>%
+  mutate(
+    attraction_share = total_arrivals / total_island_trips,
+    in_out_ratio = total_arrivals / total_departures,
+    cbd_outflow_rate = trips_to_cbd / total_departures
+  ) %>%
+  arrange(YEAR_MONTH, zone)
+```
+
+```{r}
+stop_geom <- busStops %>%
+  distinct(BUS_STOP_NUM, .keep_all = TRUE)
+
+trip_distance_summary <- total_bus %>%
+  inner_join(
+    dict_hub_stop,
+    by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM")
+    ) %>%
+  mutate(
+    origin_idx = match(
+      ORIGIN_PT_CODE,
+      stop_geom$BUS_STOP_NUM
+      ),
+    dest_idx = match(
+      DESTINATION_PT_CODE,
+      stop_geom$BUS_STOP_NUM
+      )
+    ) %>%
+  filter(!is.na(origin_idx), !is.na(dest_idx)) %>%
+  mutate(
+    distance_km = as.numeric(
+      st_distance(
+        st_geometry(stop_geom)[origin_idx],
+        st_geometry(stop_geom)[dest_idx],
+        by_element = TRUE
+      )
+    ) / 1000
+  ) %>%
+  group_by(YEAR_MONTH, zone) %>%
+  summarise(
+    weighted_avg_dist_km = weighted.mean(
+      distance_km,
+      TOTAL_TRIPS,
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  )
+```
+
+```{r}
+final_metrics <- hub_metrics %>%
+  left_join(
+    trip_distance_summary,
+    by = c("YEAR_MONTH", "zone")
+  ) %>%
+  select(
+    YEAR_MONTH,
+    zone,
+    total_arrivals,
+    total_departures,
+    attraction_share,
+    in_out_ratio,
+    cbd_outflow_rate,
+    weighted_avg_dist_km
+  )
+
+write_csv(
+  final_metrics,
+  here("data", "processed", "hub_bus_metrics_sd_control.csv")
+)
 ```
 
