@@ -1,0 +1,238 @@
+---
+title: "Weekends"
+author: '''Aya'''
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(scales)
+library(patchwork)
+library(sf)
+library(RColorBrewer)
+library(kableExtra)
+library(here)
+library(arrow)
+library(osmextract)
+
+sf_use_s2(FALSE)
+```
+
+```{r}
+subzone <- read_sf(here("data", "raw", "MasterPlan2019SubzoneBoundaryNoSeaGEOJSON.geojson"))
+
+land_use_raw <- st_read(here("data", "raw", "AmendmenttoMasterPlan2019LandUselayer.geojson"))
+
+pbf_file <- here("data", "raw", "malaysia-singapore-brunei-261113.osm.pbf")
+
+area_center <- c("PHILLIP", "RAFFLES PLACE", "BAYFRONT SUBZONE", "NICOLL", "ANSON", "TANJONG PAGAR", "MAXWELL", "CECIL", "CENTRAL SUBZONE", "BUGIS", "MARINA CENTRE", "CITY HALL")
+area_jurong <- c("JURONG GATEWAY", "INTERNATIONAL BUSINESS PARK", "LAKESIDE (LEISURE)", "LAKESIDE (BUSINESS)" )
+area_woodlands <- c("NORTH COAST", "WOODLANDS REGIONAL CENTRE")
+area_tampines <- c("TAMPINES NORTH", "TAMPINES WEST", "TAMPINES EAST")
+```
+
+```{r}
+hub_jurong <- subzone %>%
+  filter(SUBZONE_N %in% area_jurong) %>% 
+  select(-REGION_N, -REGION_C, -SUBZONE_NO)
+
+hub_tampines <- subzone %>%
+  filter(SUBZONE_N %in% area_tampines) %>% 
+  select(-REGION_N, -REGION_C, -SUBZONE_NO)
+
+hub_woodlands <- subzone %>%
+  filter(SUBZONE_N %in% area_woodlands) %>% 
+  select(-REGION_N, -REGION_C, -SUBZONE_NO)
+
+hubs <- bind_rows(hub_jurong, hub_tampines, hub_woodlands)
+
+hubs_4326 <- hubs %>% 
+  st_transform(4326)
+
+rm(hub_jurong, hub_tampines, hub_woodlands)
+```
+
+```{r}
+jurong_sf <- hubs_4326 %>% 
+  filter(PLN_AREA_N == "JURONG EAST") %>% 
+  summarise(geometry = st_union(geometry))
+jurong_bbox <- st_bbox(jurong_sf)
+
+tampines_sf <- hubs_4326 %>% 
+  filter(PLN_AREA_N == "TAMPINES") %>% 
+  summarise(geometry = st_union(geometry))
+tampines_bbox <- st_bbox(tampines_sf)
+
+woodlands_sf <- hubs_4326 %>% 
+  filter(PLN_AREA_N == "WOODLANDS") %>% 
+  summarise(geometry = st_union(geometry))
+woodlands_bbox <- st_bbox(woodlands_sf)
+```
+
+```{r warning=FALSE}
+interested_features <- list(
+  "amenity" = c(
+    "bar", "biergarten", "pub", "nightclub",
+    "restaurant", "cafe", "fast_food", "food_court",
+    "cinema", "theatre", "arts_centre", "community_centre", "library"
+  ),
+  "shop" = c(
+    "mall", "department_store", "clothes", "fashion", "shoes", "books", "electronics",
+    "supermarket", "convenience", "bakery", "butcher", "greengrocer"
+  ),
+  "leisure" = c(
+    "park", "sports_centre", "fitness_centre", "playground"
+  )
+)
+
+raw_points <- oe_read(
+  file_path = pbf_file,
+  layer = "points",
+  extra_tags = c("amenity", "shop", "leisure"),
+  quiet = TRUE
+)
+
+raw_polygons <- oe_read(
+  file_path = pbf_file,
+  layer = "multipolygons",
+  extra_tags = c("amenity", "shop", "leisure"),
+  quiet = TRUE
+) %>%
+  st_centroid(quiet = TRUE)
+
+poi_collection <- bind_rows(raw_points, raw_polygons) %>%
+  filter(
+    amenity %in% interested_features$amenity |
+    shop %in% interested_features$shop |
+    leisure %in% interested_features$leisure
+  ) %>% 
+  st_transform(4326) %>%
+  distinct(osm_id, .keep_all = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+poi_collection_hubs <- poi_collection %>%
+  st_intersection(hubs_4326 %>% select(PLN_AREA_N)) %>%
+  mutate(hub = str_to_title(PLN_AREA_N)) %>%
+  select(-PLN_AREA_N)
+
+poi_collection_hubs <- poi_collection_hubs %>% 
+  select(name, amenity, shop, leisure, hub, geometry)
+```
+
+```{r}
+pois_classified <- poi_collection_hubs %>%
+  mutate(
+    poi_category = case_when(
+      amenity %in% c("bar", "biergarten", "pub", "nightclub") ~ "Nightlife",
+      amenity %in% c("restaurant", "cafe", "fast_food", "food_court") ~ "Dining",
+      amenity %in% c("cinema", "theatre", "arts_centre") | 
+        leisure %in% c("park", "sports_centre", "fitness_centre", "playground") ~ "Family_Leisure",
+      shop %in% c("mall", "department_store", "clothes", "fashion", "shoes", "books", "electronics") ~ "Retail_Shopping",
+      shop %in% c("supermarket", "convenience", "bakery", "butcher", "greengrocer") ~ "Daily_Needs",
+      amenity %in% c("community_centre", "library") ~ "Community",
+      TRUE ~ "Other"
+      )
+    ) %>% 
+  filter(poi_category != "Other") %>% 
+  select(
+    poi_category, 
+    geometry, hub, name
+    ) %>% 
+  arrange(poi_category)
+
+poi_counts <- pois_classified %>%
+  st_drop_geometry() %>%
+  group_by(hub, poi_category) %>%
+  summarise(
+    count = n(), 
+    .groups = "drop"
+    )
+```
+
+```{r}
+hub_areas <- hubs_4326 %>% 
+  st_transform(3414) %>% 
+  group_by(PLN_AREA_N) %>% 
+  summarise(
+    geometry = st_union(geometry), 
+    .groups = "drop"
+    ) %>% 
+  mutate(
+    area_km2 = as.numeric(st_area(geometry)) / 1000000,
+    hub = str_to_title(PLN_AREA_N)
+  ) %>% 
+  st_drop_geometry()
+
+poi_density <- poi_counts %>%
+  left_join(hub_areas, by = "hub") %>%
+  mutate(
+    density_per_km2 = count / area_km2
+  )
+```
+
+```{r message=FALSE, warning=FALSE}
+land_use_3414 <- land_use_raw %>%
+  st_make_valid() %>% 
+  st_transform(3414)
+
+rm(land_use_raw)
+
+land_use_hubs <- st_intersection(
+  land_use_3414, hubs %>% select(PLN_AREA_N)
+  ) %>% 
+  mutate(hub = str_to_title(PLN_AREA_N))
+```
+
+```{r}
+land_use_hubs <- land_use_hubs %>%
+  mutate(area_km2 = as.numeric(st_area(geometry)) / 1000000)
+
+land_use_summary_raw <- land_use_hubs %>%
+  group_by(hub, LU_DESC) %>%
+  summarise(
+    total_land_area = sum(area_km2), 
+    .groups = "drop"
+    ) %>%
+  group_by(hub) %>%
+  mutate(
+    total_hub_area = sum(total_land_area),
+    percentage = (total_land_area / total_hub_area) * 100
+  ) %>%
+  ungroup() %>%
+  arrange(hub, desc(percentage))
+```
+
+```{r}
+land_use_summary_clean <- land_use_hubs %>%
+  mutate(
+    land_category = case_when(
+      LU_DESC %in% c("RESIDENTIAL", "RESIDENTIAL WITH COMMERCIAL AT 1ST STOREY", 
+                     "COMMERCIAL & RESIDENTIAL", "WHITE") ~ "Residential& Mixed-Use",
+      LU_DESC %in% c("COMMERCIAL", "HOTEL", "BUSINESS 1", "BUSINESS 2", 
+                     "BUSINESS PARK", "BUSINESS 1 - WHITE", "BUSINESS 2 - WHITE", 
+                     "BUSINESS PARK - WHITE") ~ "Commercial/Business",
+      LU_DESC %in% c("PARK", "OPEN SPACE", "SPORTS & RECREATION", "BEACH AREA") ~ "Leisure/Green",
+      LU_DESC %in% c("EDUCATIONAL INSTITUTION", "CIVIC & COMMUNITY INSTITUTION", 
+                     "PLACE OF WORSHIP", "HEALTH & MEDICAL CARE",
+                     "COMMERCIAL / INSTITUTION", "RESIDENTIAL / INSTITUTION") ~ "Community/Institutional",
+      TRUE ~ "Other")
+  ) %>%
+  group_by(hub, land_category) %>%
+  summarise(total_land_area = sum(area_km2), .groups = "drop") %>%
+  group_by(hub) %>%
+  mutate(percentage = (total_land_area / sum(total_land_area)) * 100) %>%
+  ungroup()
+
+land_use_summary_clean$land_category <- factor(
+  land_use_summary_clean$land_category,
+  levels = c("Residential& Mixed-Use", "Commercial/Business", 
+             "Leisure/Green", "Community/Institutional", "Other")
+)
+```
+
