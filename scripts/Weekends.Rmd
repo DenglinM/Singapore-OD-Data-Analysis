@@ -176,7 +176,6 @@ poi_density <- poi_counts %>%
   )
 ```
 
-
 ```{r message=FALSE, warning=FALSE}
 land_use_3414 <- land_use_raw %>%
   st_make_valid() %>% 
