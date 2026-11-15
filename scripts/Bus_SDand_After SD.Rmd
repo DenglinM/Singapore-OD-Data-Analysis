@@ -1,0 +1,554 @@
+---
+title: "Bus_After SD"
+author: '''Aya'''
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+library(arrow)
+library(here)
+library(patchwork)
+library(ggspatial)
+
+source(here("R", "od_io.R"))
+source(here("R", "map_theme.R"))
+```
+
+```{r}
+build_od_parquet()
+od <- open_od()
+```
+
+```{r}
+selected_months <- c(
+          202206, 202209, 202212,
+  202303, 202306, 202309, 202312,
+  202403, 202406, 202409, 202412,
+  202503, 202506, 202509, 202512,
+  202603, 202606, 202609
+  )
+
+total_bus <- od %>%
+  filter(
+    MODE == "bus",
+    YYYYMM %in% selected_months,
+    DAY_TYPE == "WEEKDAY",
+    TIME_PER_HOUR %in% 6:9
+    ) %>%
+  collect()
+```
+
+```{r}
+subzone <- read_sf(
+  here("data", "raw", "MasterPlan2019SubzoneBoundaryNoSeaGEOJSON.geojson")
+  ) %>%
+  st_transform(3414)
+
+busStops <- read_sf(
+  here("data", "raw", "LTABusStop.geojson")
+  ) %>%
+  st_transform(3414)
+
+hub_zones <- list(
+  CBD = c(
+    "PHILLIP", "RAFFLES PLACE", "BAYFRONT SUBZONE",
+    "NICOLL", "ANSON", "TANJONG PAGAR", "MAXWELL",
+    "CECIL", "CENTRAL SUBZONE", "BUGIS",
+    "MARINA CENTRE", "CITY HALL"
+    ),
+
+  `Jurong East` = c(
+    "JURONG GATEWAY", "INTERNATIONAL BUSINESS PARK",
+    "LAKESIDE (LEISURE)", "LAKESIDE (BUSINESS)"
+    ),
+
+  Woodlands = c(
+    "NORTH COAST", "WOODLANDS REGIONAL CENTRE"
+    ),
+
+  Tampines = c(
+    "TAMPINES NORTH", "TAMPINES WEST", "TAMPINES EAST"
+    )
+  )
+
+hub_subzones <- bind_rows(
+  subzone %>%
+    filter(SUBZONE_N %in% hub_zones$CBD) %>%
+    mutate(zone = "CBD"),
+
+  subzone %>%
+    filter(SUBZONE_N %in% hub_zones$`Jurong East`) %>%
+    mutate(zone = "Jurong East"),
+
+  subzone %>%
+    filter(SUBZONE_N %in% hub_zones$Woodlands) %>%
+    mutate(zone = "Woodlands"),
+
+  subzone %>%
+    filter(SUBZONE_N %in% hub_zones$Tampines) %>%
+    mutate(zone = "Tampines")
+  )
+
+dict_hub_stop <- st_join(
+  busStops,
+  hub_subzones %>% select(zone),
+  join = st_intersects,
+  left = FALSE
+  ) %>%
+  st_drop_geometry() %>%
+  select(BUS_STOP_NUM, zone) %>%
+  distinct()
+```
+
+```{r}
+island_total <- total_bus %>%
+  group_by(YEAR_MONTH) %>%
+  summarise(
+    total_island_trips = sum(TOTAL_TRIPS, na.rm = TRUE),
+    .groups = "drop"
+    )
+
+arrivals <- total_bus %>%
+  inner_join(
+    dict_hub_stop,
+    by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM")
+  ) %>%
+  group_by(YEAR_MONTH, zone) %>%
+  summarise(
+    total_arrivals = sum(TOTAL_TRIPS, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+departures <- total_bus %>%
+  inner_join(
+    dict_hub_stop,
+    by = c("ORIGIN_PT_CODE" = "BUS_STOP_NUM")
+  ) %>%
+  group_by(YEAR_MONTH, zone) %>%
+  summarise(
+    total_departures = sum(TOTAL_TRIPS, na.rm = TRUE),
+    trips_to_cbd = sum(
+      TOTAL_TRIPS[
+        DESTINATION_PT_CODE %in% 
+          dict_hub_stop$BUS_STOP_NUM[
+            dict_hub_stop$zone == "CBD"
+            ]
+        ],
+      na.rm = TRUE
+      ),
+    .groups = "drop"
+  )
+
+hub_metrics <- arrivals %>%
+  left_join(
+    departures,
+    by = c("YEAR_MONTH", "zone")
+  ) %>%
+  left_join(
+    island_total,
+    by = "YEAR_MONTH"
+  ) %>%
+  mutate(
+    attraction_share = total_arrivals / total_island_trips,
+    in_out_ratio = total_arrivals / total_departures,
+    cbd_outflow_rate = trips_to_cbd / total_departures
+  ) %>%
+  arrange(YEAR_MONTH, zone)
+```
+
+```{r}
+stop_geom <- busStops %>%
+  distinct(BUS_STOP_NUM, .keep_all = TRUE)
+
+trip_distance_summary <- total_bus %>%
+  inner_join(
+    dict_hub_stop,
+    by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM")
+    ) %>%
+  mutate(
+    origin_idx = match(
+      ORIGIN_PT_CODE,
+      stop_geom$BUS_STOP_NUM
+      ),
+    dest_idx = match(
+      DESTINATION_PT_CODE,
+      stop_geom$BUS_STOP_NUM
+      )
+    ) %>%
+  filter(!is.na(origin_idx), !is.na(dest_idx)) %>%
+  mutate(
+    distance_km = as.numeric(
+      st_distance(
+        st_geometry(stop_geom)[origin_idx],
+        st_geometry(stop_geom)[dest_idx],
+        by_element = TRUE
+      )
+    ) / 1000
+  ) %>%
+  group_by(YEAR_MONTH, zone) %>%
+  summarise(
+    weighted_avg_dist_km = weighted.mean(
+      distance_km,
+      TOTAL_TRIPS,
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  )
+```
+
+```{r}
+final_metrics <- hub_metrics %>%
+  left_join(
+    trip_distance_summary,
+    by = c("YEAR_MONTH", "zone")
+  ) %>%
+  select(
+    YEAR_MONTH,
+    zone,
+    total_arrivals,
+    total_departures,
+    attraction_share,
+    in_out_ratio,
+    cbd_outflow_rate,
+    weighted_avg_dist_km
+  )
+
+write_csv(
+  final_metrics,
+  here("data", "processed", "hub_bus_metrics_afterSD.csv")
+)
+```
+
+```{r}
+period_name <- "Non-control"
+```
+
+```{r}
+dict_stop_subzone <- st_join(
+  busStops %>% 
+    select(BUS_STOP_NUM), 
+  subzone %>% select(SUBZONE_N), 
+  join = st_intersects, 
+  left = FALSE
+  ) %>%
+  st_drop_geometry() %>%
+  transmute(
+    BUS_STOP_NUM,
+    origin_subzone = SUBZONE_N
+  ) %>%
+  distinct()
+```
+
+```{r}
+od_subzone_hub <- total_bus %>% 
+  inner_join(
+    dict_stop_subzone,
+    by = c("ORIGIN_PT_CODE" = "BUS_STOP_NUM")
+    ) %>% 
+  inner_join(
+    dict_hub_stop,
+    by = c("DESTINATION_PT_CODE" = "BUS_STOP_NUM")
+    ) %>%
+  group_by(zone, origin_subzone) %>% 
+  summarise(
+    total_trips = sum(TOTAL_TRIPS, na.rm = TRUE),
+    .groups = "drop"
+  ) %>% 
+  mutate(
+    avg_monthly_trips =
+      total_trips / n_distinct(total_bus$YEAR_MONTH)
+    )
+```
+
+```{r}
+service_sheds <- od_subzone_hub %>%
+  group_by(zone) %>%
+  arrange(
+    desc(avg_monthly_trips),
+    origin_subzone,
+    .by_group = TRUE
+  ) %>%
+  mutate(
+    hub_total = sum(avg_monthly_trips),
+    trip_share = avg_monthly_trips / hub_total,
+    cumulative_share = cumsum(trip_share),
+    cumulative_before = lag(
+      cumulative_share,
+      default = 0
+    ),
+    shed_type = case_when(
+      cumulative_before < 0.25 ~ "Core",
+      cumulative_before < 0.50 ~ "Strong",
+      cumulative_before < 0.75 ~ "Weak",
+      TRUE ~ "Peripheral"
+    ),
+    principal = shed_type %in% c("Core", "Strong")
+  ) %>%
+  ungroup() %>%
+  mutate(
+    period = period_name
+  )
+
+shed_summary <- service_sheds %>%
+  group_by(period, zone, shed_type) %>%
+  summarise(
+    n_subzones = n(),
+    total_trips = sum(avg_monthly_trips),
+    flow_share = sum(trip_share),
+    .groups = "drop"
+  )
+
+shed_summary <- shed_summary %>%
+  mutate(
+    shed_type = factor(
+      shed_type,
+      levels = c(
+        "Core",
+        "Strong",
+        "Weak",
+        "Peripheral"
+      )
+    )
+  ) %>%
+  arrange(zone, shed_type)
+```
+
+```{r}
+shed_levels <- c(
+  "Core",
+  "Strong",
+  "Weak",
+  "Peripheral",
+  "No flow"
+)
+
+centre_order <- c(
+  "Woodlands",
+  "Tampines",
+  "Jurong Lake District",
+  "CBD"
+)
+```
+
+```{r}
+principal_sheds <- service_sheds %>%
+  filter(principal) %>%
+  distinct(
+    period,
+    zone,
+    origin_subzone
+  )
+
+shed_sizes <- principal_sheds %>%
+  count(
+    period,
+    zone,
+    name = "n_principal"
+  )
+
+shed_intersections <- principal_sheds %>%
+  rename(center_i = zone) %>%
+  inner_join(
+    principal_sheds %>% rename(center_j = zone),
+    by = c("period", "origin_subzone"),
+    relationship = "many-to-many"
+  ) %>%
+  count(period, center_i, center_j, name = "n_overlap")
+
+shed_overlap <- crossing(
+  period = period_name,
+  center_i = names(hub_zones),
+  center_j = names(hub_zones)
+) %>%
+  left_join(
+    shed_intersections,
+    by = c("period", "center_i", "center_j")
+  ) %>%
+  left_join(
+    shed_sizes %>%
+      rename(center_j = zone, n_j = n_principal),
+    by = c("period", "center_j")
+  ) %>%
+  mutate(
+    n_overlap = replace_na(n_overlap, 0L),
+    overlap_pct = 100 * n_overlap / n_j
+  )
+```
+
+```{r}
+subzone_membership <- principal_sheds %>%
+  count(
+    period,
+    origin_subzone,
+    name = "n_centers"
+  )
+
+unique_sheds <- principal_sheds %>%
+  left_join(
+    subzone_membership,
+    by = c("period", "origin_subzone")
+  ) %>%
+  filter(n_centers == 1) %>%
+  count(period, zone, name = "n_unique")
+
+self_containment <- shed_sizes %>%
+  left_join(
+    unique_sheds,
+    by = c("period", "zone")
+  ) %>%
+  mutate(
+    n_unique = replace_na(n_unique, 0L),
+    unique_pct = 100 * n_unique / n_principal
+  )
+
+shed_overlap_final <- shed_overlap %>%
+  left_join(
+    self_containment %>%
+      select(period, zone, unique_pct) %>%
+      rename(center_j = zone),
+    by = c("period", "center_j")
+  ) %>%
+  mutate(
+    overlap_pct = if_else(
+      center_i == center_j,
+      unique_pct,
+      overlap_pct
+    )
+  )
+```
+
+```{r}
+overlap_plot_data <- shed_overlap_final %>%
+  mutate(
+    center_i = recode(
+      center_i,
+      "Jurong East" = "Jurong Lake District"
+    ),
+    center_j = recode(
+      center_j,
+      "Jurong East" = "Jurong Lake District"
+    ),
+    overlap = overlap_pct / 100
+  )
+```
+
+```{r}
+p_overlap <- stylized_matrix(
+  center_j,
+  center_i,
+  overlap,
+  data = overlap_plot_data,
+  order = centre_order,
+  limits = c(0, 1),
+  legend_title = "Overlap",
+  title = "Bus Principal Service Shed Overlap",
+  subtitle = "Bus | AM Peak | Non-control Period",
+  caption = paste(
+    "Read by column. Diagonal indicates the share of",
+    "exclusive principal subzones."
+  )
+)
+
+p_overlap
+```
+
+```{r}
+shed_map_data <- crossing(
+  zone = names(hub_zones),
+  origin_subzone = unique(subzone$SUBZONE_N)
+) %>%
+  left_join(
+    service_sheds %>%
+      select(
+        zone,
+        origin_subzone,
+        shed_type,
+        trip_share,
+        cumulative_share
+      ),
+    by = c("zone", "origin_subzone")
+  ) %>%
+  mutate(
+    shed_type = replace_na(shed_type, "No flow"),
+    zone = recode(
+      zone,
+      "Jurong East" = "Jurong Lake District"
+    ),
+    shed_type = factor(
+      shed_type,
+      levels = shed_levels
+    )
+  )
+```
+
+```{r}
+service_sheds_sf <- subzone %>%
+  rename(origin_subzone = SUBZONE_N) %>%
+  left_join(
+    shed_map_data,
+    by = "origin_subzone"
+  )
+```
+
+```{r}
+hub_subzones <- hub_subzones %>%
+  mutate(
+    zone = recode(
+      zone,
+      "Jurong East" = "Jurong Lake District"
+    )
+  )
+
+plots <- lapply(centre_order, function(current_centre) {
+  map_data <- service_sheds_sf %>%
+    filter(zone == current_centre)
+  
+  centre_outline <- hub_subzones %>%
+    filter(zone == current_centre) %>%
+    summarise(geometry = st_union(geometry))
+  
+  sg_map(
+    data = map_data,
+    var = shed_type,
+    type = "discrete",
+    values = shed_colours,
+    breaks = shed_breaks,
+    labels = shed_labels,
+    outline = centre_outline,
+    rings_km = c(5, 10, 15),
+    centre_label = NULL,
+    legend = "right",
+    legend_title = "Service Shed",
+    title = current_centre
+  )
+})
+```
+
+```{r}
+p_service_sheds <- wrap_plots(
+  plots,
+  ncol = 2,
+  guides = "collect"
+) +
+  plot_annotation(
+    title = "Bus Service Sheds",
+    subtitle = "AM Peak | Non-control Period",
+    caption = "Data: LTA DataMall passenger volume by OD (MRT/LRT), monthly average of 18 months; URA Master Plan 2019 subzones.",
+    tag_levels = "a",
+    tag_prefix = "(",
+    tag_suffix = ")"
+  ) &
+  theme(
+    legend.position = "right"
+  )
+
+p_service_sheds
+```
+
