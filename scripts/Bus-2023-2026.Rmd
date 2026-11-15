@@ -126,12 +126,12 @@ od_bus_2026 <- od_bus_2026 %>%
     (DAY_TYPE == "WEEKDAY" & TIME_PER_HOUR %in% peakHour) |
     (DAY_TYPE == "WEEKENDS/HOLIDAY")
   )
+
+am_peak <- c(6,7,8,9)
+pm_peak <- c(17,18,19,20)
 ```
 
 ```{r}
-am_peak <- c(6,7,8,9)
-pm_peak <- c(17,18,19,20)
-
 dict_hub_stop <- bind_rows(
   busStops_center %>% mutate(zone = "CBD"),
   busStops_tampines %>% mutate(zone = "Tampines"),
@@ -141,6 +141,7 @@ dict_hub_stop <- bind_rows(
   select(BUS_STOP_NUM, zone)
 
 hubs_bus <- bind_rows(od_bus_2023, od_bus_2024,od_bus_2025, od_bus_2026)
+
 rm(od_bus_2023, od_bus_2024, od_bus_2025, od_bus_2026)
 ```
 
@@ -163,14 +164,14 @@ total_dest_flows_am <- total_bus %>%
     total_island_trips = sum(TOTAL_TRIPS),
     .groups = "drop"
     )
+```
 
+```{r}
 bus_share_am <- attraction_monthly_am %>% 
   left_join(total_dest_flows_am, by = "YEAR_MONTH") %>% 
   mutate(am_share = total_arrivals / total_island_trips) %>% 
   arrange(YEAR_MONTH, zone)
-```
 
-```{r}
 cbd_outflow_share <- total_bus %>% 
   filter(DAY_TYPE == "WEEKDAY", TIME_PER_HOUR %in% am_peak) %>% 
   inner_join(dict_hub_stop, by = c("ORIGIN_PT_CODE" = "BUS_STOP_NUM")) %>% 
