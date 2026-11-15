@@ -1,0 +1,64 @@
+---
+title: "Weekends"
+author: '''Aya'''
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(scales)
+library(patchwork)
+library(sf)
+library(RColorBrewer)
+library(kableExtra)
+library(here)
+library(arrow)
+library(osmextract)
+```
+
+```{r}
+subzone <- read_sf(here("data", "raw", "MasterPlan2019SubzoneBoundaryNoSeaGEOJSON.geojson"))
+
+area_center <- c("PHILLIP", "RAFFLES PLACE", "BAYFRONT SUBZONE", "NICOLL", "ANSON", "TANJONG PAGAR", "MAXWELL", "CECIL", "CENTRAL SUBZONE", "BUGIS", "MARINA CENTRE", "CITY HALL")
+area_jurong <- c("JURONG GATEWAY", "INTERNATIONAL BUSINESS PARK", "LAKESIDE (LEISURE)", "LAKESIDE (BUSINESS)" )
+area_woodlands <- c("NORTH COAST", "WOODLANDS REGIONAL CENTRE")
+area_tampines <- c("TAMPINES NORTH", "TAMPINES WEST", "TAMPINES EAST")
+```
+
+```{r}
+hub_center <- subzone %>%
+  filter(SUBZONE_N %in% area_center) %>% 
+  select(-REGION_N, -REGION_C, -SUBZONE_NO)
+
+hub_jurong <- subzone %>%
+  filter(SUBZONE_N %in% area_jurong) %>% 
+  select(-REGION_N, -REGION_C, -SUBZONE_NO)
+
+hub_tampines <- subzone %>%
+  filter(SUBZONE_N %in% area_tampines) %>% 
+  select(-REGION_N, -REGION_C, -SUBZONE_NO)
+
+hub_woodlands <- subzone %>%
+  filter(SUBZONE_N %in% area_woodlands) %>% 
+  select(-REGION_N, -REGION_C, -SUBZONE_NO)
+
+hubs <- bind_rows(hub_center, hub_jurong, hub_tampines, hub_woodlands)
+
+rm(hub_center, hub_jurong, hub_tampines, hub_woodlands)
+```
+
+```{r}
+
+```
+
+
+
+
+
+
+

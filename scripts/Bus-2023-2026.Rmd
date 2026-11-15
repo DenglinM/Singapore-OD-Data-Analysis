@@ -18,6 +18,7 @@ library(RColorBrewer)
 library(kableExtra)
 library(here)
 library(arrow)
+library(osmdata)
 
 source(here("R", "od_io.R"))
 ```
@@ -226,5 +227,4 @@ trip_distance_summary <- total_bus %>%
     .groups = "drop"
   )
 ```
-
 
